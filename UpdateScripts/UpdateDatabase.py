@@ -5,7 +5,11 @@ Created on Tue Jul 11 23:11:42 2023
 @author: Victor
 """
 
+import os
+os.chdir(r'C:\Users\Victor\Dropbox\Python Scripts\Repositories\Finance\Data')
+
 import sys
+sys.path.insert(0, r'C:\Users\Victor\Dropbox\Python Scripts\Repositories\Finance\Yield Curve')
 import YieldCurveLib as yc
 
 if len(sys.argv) > 1:

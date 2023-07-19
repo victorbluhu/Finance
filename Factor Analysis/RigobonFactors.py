@@ -6,31 +6,21 @@ Created on Tue Jul 18 13:57:03 2023
 """
 
 import numpy as np
-import sys
-sys.path.insert(0, r'Y:\Addin\Controle\Codigos Python\libs\Dado_macro')
-sys.path.insert(0, r'Y:\Addin\Controle\Codigos Python\libs')
-# import My_Data_Functions as mdf
-import EconometriaBluhu as eb
-import funcoes_auxiliares as faux
-# import simulacoes as sm
-import basic_functions as bf
-
-from os import path
+# import sys
 
 import pandas as pd
 import math
 import datetime as dt
 import matplotlib.pyplot as mp
-import datetime as dt
 
 import os
-import base64
+os.chdir(r'C:\Users\Victor\Dropbox\Python Scripts\Repositories\Finance')
 
 import statsmodels.api as sm
 from statsmodels.sandbox.regression.gmm import IV2SLS
 
 # %%
-copom = pd.read_excel(r'Y:\Macro\Temp\DatasCopomFinal.xlsx')
+copom = pd.read_excel(r'Data\DatasCopom.xlsx')
 copom['REUNIAO'] = 1
 copom = copom.loc[copom['Após Mercado'] == 1].set_index(
     # 'Data'
@@ -38,81 +28,40 @@ copom = copom.loc[copom['Após Mercado'] == 1].set_index(
     ).sort_index()[['REUNIAO']]
 copom
 
-#%% Puxa os dados de surpresa de copom
+# %% Puxa as séries de juros futuros e de surpresas de juros disponíveis
+"""Séries de juros futuros e também de surpresas de juros entre fechamento e abertura."""
 
-data_dict = pd.read_excel(r'Y:\Macro\BRASIL\Dados\Abrir na BBG\SurpresasCopom.xlsx', sheet_name = None)
-excelData_dict = pd.read_excel(r'Y:\Macro\BRASIL\Dados\Abrir na BBG\SurpresasCopom.xlsx', sheet_name = None)
-data_dict.keys()
-
-# %%
-surpresas = []
-
-for name, sheet_name in zip(
-    ['s_1', 's_2', 's_3'], ['DI Fut 1st Generic', 'DI Fut 2nd Generic', 'DI Fut 3rd Generic']
-):
-
-    temp = data_dict[sheet_name].iloc[6:].copy()
-    temp = temp[[temp.columns[0], temp.columns[-1]]]
-    temp.columns = ['dtref', name]
-    surpresas.append(temp.dropna().set_index('dtref').sort_index()*100)
-
-    
-for name, sheet_name in zip(
-    ['i_1', 'i_2', 'i_3'], ['DI Fut 1st Generic', 'DI Fut 2nd Generic', 'DI Fut 3rd Generic']
-):
-
-    temp = data_dict[sheet_name].iloc[6:].copy()
-    temp = temp[[temp.columns[0], temp.columns[-2]]]
-    temp.columns = ['dtref', name]
-    surpresas.append(temp.dropna().set_index('dtref').sort_index())
-
-# pd.DataFrame.from_dict(surpresas, orient='columns')
-surpresas = pd.concat(surpresas, axis = 1).iloc[1:].applymap(float)
-surpresas = surpresas.loc[
-    surpresas.index>=dt.datetime(2001,4,14)
-    ].drop(dt.datetime(2006,12,29))
-surpresas.loc[surpresas.index.year == 2012].plot(figsize = (14,7))
-surpresas.loc[surpresas.index.year >= 2004].plot(figsize = (14,7))
-
-surpresas.isna().sum()
+surpresas = pd.read_csv(r'Data\SurpresasCopom.csv', index_col = 0, parse_dates=True)
 
 surpresasCopom = surpresas.loc[
     [x for x in copom.index if x <= dt.datetime.now()]
-    # surpresas.loc[surpresas.iloc[:,:1].isna().values]
     ]
 
 surpresasCopom.iloc[:,:3].loc[surpresasCopom['s_3'].isna()]
 
-# %% Retorno do CDI
-cdi = bf.retornosDB(dt.datetime(2000,1,1), 'cCDI').set_index('dtref').rename({
-    'retorno': 'CDI'
-    }, axis = 1).applymap(math.exp)*100-100
-cdi.index = [bf.int_date_to_str(x) for x in cdi.index]
+# %% Retorno do CDI em pontos percentuais
+
+cdi = pd.read_csv(r'Data\CDI.csv', parse_dates = True, index_col = 0)
+
 cdi.plot()
 
-# %% IBOV
-ibov = bf.retornosDB(dt.datetime(2000,1,1), 'IBOV').set_index('dtref').rename({
-    'retorno': 'IBOV'
-    }, axis = 1).applymap(math.exp)*100-100
-ibov.index = [bf.int_date_to_str(x) for x in ibov.index]
-ibov = (ibov.loc[ibov.index.isin(cdi.index)] - cdi.loc[cdi.index.isin(ibov.index)].values).rename({
-    'IBOV': 'IBOV menos CDI'
-    }, axis = 1)
+# %% IBOV em pontos percentuais
+ibov = pd.read_csv(r'Data\IBOV.csv', parse_dates = True, index_col = 0)
+
+ibov['IBOV menos CDI'] = ibov['IBOV'] - cdi['CDI']
+ibov = ibov.drop('IBOV', axis = 1).dropna()
+
 ibov.plot()
 
-# %% USDBRL
-usdbrl = bf.fetchTableMacro([4944]).pct_change().dropna()
-usdbrl.columns = ['USDBRL']
-usdbrl = usdbrl.loc[usdbrl.index >= surpresas.index[0]]*100
-usdbrl = (usdbrl.loc[usdbrl.index.isin(cdi.index)] - cdi.loc[cdi.index.isin(usdbrl.index)].values).rename({
-    'USDBRL': 'USDBRL menos CDI'
-    }, axis = 1)
+# %% USDBRL em pontos percentuais
+usdbrl = pd.read_csv(r'Data\USDBRL.csv', parse_dates = True, index_col = 0)
+
+usdbrl['USDBRL menos CDI'] = usdbrl['USDBRL'] - cdi['CDI']
+usdbrl = usdbrl.drop('USDBRL', axis = 1).dropna()
 usdbrl.plot()
 
 # %% Factor Data em pontos percentuais
-nefin = bf.fetchTableMacro(
-    bf.busca_nome_macro('Nefin').id_serie
-    ).drop(
+nefin = pd.read_csv(r'Data\NefinFactors.csv', parse_dates = True, index_col = 0).drop(
     'Risk Factor - Nefin - Risk_free - Livre de Risco', axis = 1
     )
 nefin = 100*nefin.rename({key: key.split('Nefin - ')[-1] for key in nefin}, axis = 1)
@@ -151,7 +100,7 @@ indic = pd.DataFrame.from_dict(indic)
 
 for col in indic:
     ax = surpresas.loc[indic[col].values].iloc[:,:3].plot(
-        ylim = (-60,80), **faux.plot_params
+        ylim = (-60,80), 
         )
     ax.set_title(f'Surpresas de Copom Lagged em {col} dias')
     mp.show()
@@ -396,7 +345,7 @@ variance_comparison = pd.concat([
     pd.concat([100*Covariates, Y], axis = 1).loc[control_dates].std().to_frame('Dias Ordinários'),
     pd.concat([100*Covariates, Y], axis = 1).loc[treatment_dates].std().to_frame('Dias de Comunicado')
     ], axis = 1)**2
-variance_comparison
+print(variance_comparison)
 
 # %%
 
