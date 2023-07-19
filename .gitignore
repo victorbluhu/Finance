@@ -1,0 +1,8 @@
+**/*.pyc
+*.pyc
+
+# folders
+.pytest_cache/
+.pylint.d
+__pycache__/
+RawData/
