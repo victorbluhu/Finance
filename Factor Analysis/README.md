@@ -20,7 +20,7 @@
 
 ## Choques de Política Monetária
 Uma variável de extremo interesse é a sensibilidade dos ativos a mudanças nas taxas de juros ou, mais especificamente, a mudanças na política monetária. Diversos são os canais pelos quais mudanças em taxas de juros são relevantes para os ativos. O canal mais imediato pelo qual aumentos de taxas de juros agem é aumentando o retorno exigido dos ativos, diminuindo o preço dos ativos e levando inicialmente a retornos negativos. Para equities, um canal negativo adicional esperado tipicamente é de queda nos earnings, porque juros maiores têm efeitos marginais negativos para atividade e para a lucratividade das empresas por conseguinte. Para a moeda local, entretanto, espera-se que haja uma apreciação vis-a-vis outras moedas (ou depreciação de outras moedas quando cotadas na moeda doméstica), levando a retornos positivos concomitantes aos aumentos de juros. Será que identificamos estes efeitos para a economia brasileira?
-Uma maneira de investigar essa questão é estimar modelos que tenham uma equação do tipo $$R_t^s = \beta^s \Delta i_t + ... + \eta_t^s.$$ O parâmetro de interesse aqui é o $\beta^s$, que para acada ativo $s$ pode ter sinal e magnitude particulares. Para avaliar essa questão, levantei dados diários desde 2003-06 para o IBOV, para o USDBRL e para os fatores de risco de equities disponibilizados pelo [Nefin](https://nefin.com.br/data/risk_factors.html), um centro de pesquisa em Finanças da FEA-USP. Os fatores de risco são excessos de retorno e os retornos diários do IBOV e do USDBRL são subtraídos do CDI do dia. Para as séries de juros, utilizei os 3 primeiros vencimentos de dados de futuros de taxa média de DI de 1 dia. Para calcular os resultados apresentados e discutidos abaixo, calculei a diferença diária das taxas de juros e calculei o primeiro componente principal (PC) das variações diárias e o utilizei como medida de mudança de juros.[^1]
+Uma maneira de investigar essa questão é estimar modelos que tenham uma equação do tipo $$R_t^s = \beta^s \Delta i_t + ... + \eta_t^s.$$ O parâmetro de interesse aqui é o $\beta^s$, que para acada ativo $s$ pode ter sinal e magnitude particulares. Para avaliar essa questão, levantei dados diários desde 2003-06 para o IBOV, para o USDBRL e para os fatores de risco de equities disponibilizados pelo [Nefin](https://nefin.com.br/data/risk_factors.html), um centro de pesquisa em Finanças da FEA-USP. Os fatores de risco são excessos de retorno e os retornos diários do IBOV e do USDBRL são subtraídos do CDI do dia. Para as séries de juros, utilizei os 3 primeiros vencimentos de dados de futuros de taxa média de DI de 1 dia. Para calcular os resultados apresentados e discutidos abaixo, utilizei como medida da mudança de juros diária o primeiro componente principal das diferenças diárias das taxas de juros, exceto quando comentado em contrário.[^1]
 
 ![Checar se pdf pode ser inserido como imagem. Se não puder, colocar jpeg.](Figures/ChoquesEstimadosMonePol.pdf)
 *Efeitos estimados de mudanças de juros nos retornos diários*
@@ -34,7 +34,7 @@ Uma maneira de investigar essa questão é estimar modelos que tenham uma equaç
 | Iliquidez          | -0.07 |         1.11 |        0.75 |     -1.24 |                       -0.24 |
 | USDBRL menos CDI   |  1.31 |         1.1  |       -1.19 |     -0.29 |                       -0.74 |
 
-[^1]: 
+[^1]: Em todos os casos, como é de se esperar e é conhecido para taxas de juros, o primeiro componente principal é muito similar à média simples das séries.
 
 ### Estimação por OLS
 A princípio, alguém poderia querer estimar a sensibilidade dos ativos a mudanças de juros por meio de um OLS utilizando a amostra inteira, mas isso seria inadequado. O estimador de OLS é viesado se $\Delta i_t$ é endógeno e aqui há um claro caso de endogeneidade por simultaneidade/causalidade reversa: $$\Delta i_t = \alpha^s R_t^s + ... + \varepsilon_t.$$ O ponto em que isso é mais claro é para o câmbio. Tudo mais constante, uma surpresa de depreciação do real deveria aumentar a inflação esperada e, pela expectativa de reação da autoridade monetária, um aumento nas curvas de juros. Não é surpreendente então, que estimemos um efeito de depreciação da moeda quando utilizamos a amostra toda sem endereçar os problemas de endogeneidade. É claramente preciso endereçar este problema.
@@ -53,7 +53,7 @@ Ao contrário do Event-study estimado no passo anterior, aqui temos uma variáve
 
 ### Identificação por Heteroscedasticidade
 Outra estratégia possível é a identificação por heteroscedasticidade, proposto por Rigobon e Sack (2002) (INSERIR A CITAÇÃO CORRETA AQUI) e que aproveita da maior variância de séries associada aos momentos de divulgação de novos dados econômicos ou financeiros. A ideia é similar à ideia do Event-Study, mas a hipótese de identificação é diferente: em vez de assumir que a variância dos choques estruturais é muito maior *do que a variância dos outros erros*, assume-se que apenas a variância dos choques estruturais de juros aumenta nesses dias, o resto dos choques fica com mesmo variância. A intuição é que, como só a variância dos choques de juros aumentou, poderíamos comparar a covariância das variáveis na amostra dos dias seguintes aos comunicados do Copom com a covariância das variáveis em dias anteriores à divulgação dos dados para estimar os efeitos de juros sobre os retornos diários. Essa comparação é operacionalizada por uma variável instrumental construída aqui com os deltas de juros e também com os retornos dos ativos estudados.
-Na nossa especificação, utilizamos os 5 dias anteriores a cada comunicado do Copom para construir a amostra dos dias de controle. Os instrumentos utilizados são construídos como $$ w_t^l = \{ x^l_t * \frac{-1}{T_C - L} | t \in C \} \cup \{ x^l_t * \frac{1}{T_T - L} | t \in T \}, \forall l \in \{ \Delta i, R_t^1, R_t^2,, ...\}$$ em que  $T$ é o conjunto de dias seguintes ao Copom, $C$ é o conjunto de pregões anteriores ao comunicado e $L$ é o número de parâmetros estimados no primeiro estágio da estimação (para obtermos um estimador não viesado).
+Na nossa especificação, utilizamos os 5 dias anteriores a cada comunicado do Copom para construir a amostra dos dias de controle. Os instrumentos utilizados são construídos como $$w_t^l = \\{ x^l_t * \frac{-1}{T_C - L} | t \in C \\} \cup \\{ x^l_t * \frac{1}{T_T - L} | t \in T \\}, \forall l \in \\{ \Delta i, R_t^1, R_t^2,, ...\\}$$ em que  $T$ é o conjunto de dias seguintes ao Copom, $C$ é o conjunto de pregões anteriores ao comunicado, $T_T$ e $T_C$ são os números de dias em cada conjunto e $L$ é o número de parâmetros estimados no primeiro estágio da estimação (para obtermos um estimador não viesado).
 Da mesma forma que na estratégia de identificação por surpresas de juros, obtemos apreciação do real como resultado de aumentos de juros, mesmo que com magnitude menor do que antes. Além disso, todos os efeitos estimados para equities aumentam de magnitude.
 
 ### Comentários sobre os Resultados
@@ -70,10 +70,10 @@ Para o portfolio de Value existe maior discussão sobre sensibilidade a juros po
 
 ### Próximos Passos
 Rodar com dados semanais em vez de diários
-
+<!--
 Teste para instrumentos fracos
  - LEWIS, D. Robust Inference in Models Identified via Heteroskedasticity
-
+-->
 External/Internal Instruments / Local Projections para o VAR
  - Mais afeito a modelos low frequency. Semanal já soa overstretch. Cabível,
  é claro, mas overstretch
