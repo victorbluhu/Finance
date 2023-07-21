@@ -398,13 +398,15 @@ FullResultados = pd.concat([
     EventStudyResultados.rename({'PCA1 - Delta i_t': 'PCA1 - EventStudy'}, axis = 1),
     resultados_selected[['PCA1']].rename({'PCA1': 'PCA1 - Surpresas'}, axis = 1),
     RigobonResultados.rename({'PCA1 - Delta i_t': 'PCA1 - Rigobon'}, axis = 1)
-    ], axis = 1).rename(
+    ], axis = 1)
+FullResultados = FullResultados.rename(
         {x: x.split(' - ')[-1] for x in FullResultados.index}, axis = 0
         ).rename(
         {x: x.split(' - ')[1] for x in FullResultados.columns}, axis = 1
         )
 
 FullResultados['Média Surpresas e Rigobon'] = FullResultados[['Surpresas','Rigobon']].mean(axis = 1)
+FullResultados.columns
 
 ax = FullResultados.plot.bar(
     title = 'Efeito Estimado de aumento de 1 ponto percentual na curva curta',
@@ -413,6 +415,10 @@ ax = FullResultados.plot.bar(
   
 ax.get_figure().savefig(
     r'Factor Analysis\Figures\ChoquesEstimadosMonePol.pdf', bbox_inches = 'tight'
+    )
+
+ax.get_figure().savefig(
+    r'Factor Analysis\Figures\ChoquesEstimadosMonePol.jpg', bbox_inches = 'tight'
     )
 
 print(round(FullResultados,2).to_markdown())
