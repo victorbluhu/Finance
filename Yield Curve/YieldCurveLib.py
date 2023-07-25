@@ -30,7 +30,7 @@ def cria_pasta(folder):
     else:
         print("The directory alredy exists.")
 
-def atualizaParametrosGSKdoFED(pasta = 'GSKdata'):
+def atualizaParametrosGSKdoFED(pasta = 'Data\GSKdata'):
     
     try:
         print(80*"=")
@@ -69,7 +69,7 @@ def puxaParametrosGSKdoFED(tipo = 'nominal', pasta = 'data'):
         print(e)
         print("Não deu certo. Checar")
 
-def montaParametrosGSKdoFED(tipo = 'nominal', pasta = 'GSKdata'):
+def montaParametrosGSKdoFED(tipo = 'nominal', pasta = 'Data\GSKdata'):
     
     from os.path import join
     file_name = join(pasta, tipo +'-GSK.csv')
@@ -90,34 +90,14 @@ def montaParametrosGSKdoFED(tipo = 'nominal', pasta = 'GSKdata'):
     return data['Params']
 
 def fetchCurvaGSKParametrizada(
-    tipo = 'nominal', pasta = 'GSKdata',
+    tipo = 'nominal', pasta = 'Data\GSKdata',
     mensal = False, max_maturity = 360,
     min_date = dt.datetime(1950,1,1),
     max_date = dt.datetime(2100,12,31)
 ):  
     
     params = montaParametrosGSKdoFED(tipo = tipo)
-    # # A f*cking ANBIMA usa uma especificação diferente do Fed. Para harmonizar tudo, inverto os taus e multiplico os betas por 100 antes de usar
-    # if 'BR-GSK' in nome:
-    #     for col in params:
-    #         if 'beta' in col.lower():
-    #             params[col] *= 100
-    #         elif 'tau' in col.lower():
-    #             params[col] = params[col]**(-1)
-                
-    #     return GSK_Curve(
-    #             params.loc[
-    #                     (params.index >= min_date) & (params.index <= max_date)
-    #                     ],
-    #             mensal = mensal, max_maturity = max_maturity, Anbima = 'BR-GSK' in nome
-    #             )
-    # else:
-    #     return GSK_Curve(
-    #             params.loc[
-    #                     (params.index >= min_date) & (params.index <= max_date)
-    #                     ],
-    #             mensal = mensal, max_maturity = max_maturity, Anbima = 'BR-GSK' in nome
-    #             )
+
     return GSK_Curve(
             params.loc[
                     (params.index >= min_date) & (params.index <= max_date)
@@ -125,6 +105,99 @@ def fetchCurvaGSKParametrizada(
             mensal = mensal, max_maturity = max_maturity, Anbima = 'BR' in tipo
             )
 
+# %%
+class YieldCurveSet:
+    
+    def __init__(self):
+        
+        pass
+    
+    def addYieldCurve(self, YieldCurveObject, YieldCurveName):
+        
+        if hasattr(self, YieldCurveName):
+            print("Nome de Atributo existente. Sobrescrevendo.")
+            
+        setattr(self, YieldCurveName, YieldCurveObject)
+    
+    def addBreakevenCurve(
+            self, NominalYieldCurveName, TipsYieldCurveName, name = None):
+        
+        if name is None:
+            name = 'breakeven'
+            
+        if hasattr(self, name):
+            print("Nome de Atributo existente. Sobrescrevendo.")
+        
+        if not hasattr(self, NominalYieldCurveName) or not hasattr(self, TipsYieldCurveName):
+            print("Nome de Curvas não existentes. Reveja a função")
+        else:
+            nominal = getattr(self, NominalYieldCurveName)
+            tips = getattr(self, TipsYieldCurveName)
+            
+            setattr(
+                self,
+                name,
+                YieldCurve(
+                    yields_df = nominal.LogYields - tips.LogYields,
+                    modo = 'LogYields',
+                    mensal = nominal.mensal,
+                    fixed_horizon_em_meses = nominal.fixed_horizon_em_meses,
+                    FRA_horizon_em_meses = nominal.FRA_horizon,
+                    fixed_rate_horizon = nominal.fixed_rate_horizon,
+                    inicializar_tudo = nominal.inicializar_tudo)
+                )
+    
+    def getCurva(self, string, date_indices, curve_names = []):
+        
+        for s_ in curve_names:
+            if not hasattr(self, s_):
+                print(f"Não temos nada salvo como {s_} no YieldCurveSet")
+                return None
+        else:
+            
+            Curva = pd.DataFrame()
+            
+            for s_ in curve_names:
+                
+                temp = getattr(self, s_).getCurvaJurosDf(
+                    getattr(getattr(self, s_), string), date_indices)
+                temp.columns = pd.MultiIndex.from_product(
+                    [temp.columns, [s_]], names = ['dtref', 'curva']
+                    )
+                
+                Curva = pd.concat([Curva, temp], axis = 1)
+            
+            return Curva
+    
+    def plotCurvasDate(self, string, date_indices, title_string, params = {
+        'figsize': (14,7), 'grid': True,
+        'lw': 2, 'fontsize': 14
+    }, max_vertex = 120):
+        
+        temp_df = self.getCurva(
+            string, date_indices,
+            curve_names = ['nominal','tips','breakeven'])
+        
+        cols0 = np.unique([x[0] for x in temp_df])
+        
+        return {date: temp_df[date].loc[temp_df.index <= max_vertex].plot(
+                title = title_string + f' - {date}',
+                xlabel = 'Meses',
+                **params) for date in cols0
+            }
+    
+    # def plotCurva(self, string, date_indices, params = {
+    #     'figsize': (14,7), 'grid': True,
+    #     'lw': 2, 'fontsize': 14
+    # }, max_vertex = 120):
+        
+    #     if not hasattr(self, string):
+    #         print("Não temos nada salvo como atributo em " + string)
+    #         return None
+    #     else:
+    #         return self.plotCurvaDF(
+    #             getattr(self, string), date_indices,
+    #             f'Estrutura a Termo de {string}', params, max_vertex = 120)
 
 # %% Workhorse básico para Yield Curves
 
@@ -159,6 +232,8 @@ class YieldCurve:
         self.FRA_horizon = FRA_horizon_em_meses
         self.fixed_rate_horizon = fixed_rate_horizon
         
+        self.inicializar_tudo = inicializar_tudo
+        
         if inicializar_tudo:
             self.createCurves()
     
@@ -175,7 +250,6 @@ class YieldCurve:
         return (
                 YieldsDF.resample('M').last() if self.mensal else YieldsDF
                 ), fixed_horizon_em_meses, fixed_horizon
-    
     
     def createCurves(self):
         if hasattr(self, 'Yields'):
