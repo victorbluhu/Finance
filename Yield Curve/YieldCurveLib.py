@@ -105,99 +105,6 @@ def fetchCurvaGSKParametrizada(
             mensal = mensal, max_maturity = max_maturity, Anbima = 'BR' in tipo
             )
 
-# %%
-class YieldCurveSet:
-    
-    def __init__(self):
-        
-        pass
-    
-    def addYieldCurve(self, YieldCurveObject, YieldCurveName):
-        
-        if hasattr(self, YieldCurveName):
-            print("Nome de Atributo existente. Sobrescrevendo.")
-            
-        setattr(self, YieldCurveName, YieldCurveObject)
-    
-    def addBreakevenCurve(
-            self, NominalYieldCurveName, TipsYieldCurveName, name = None):
-        
-        if name is None:
-            name = 'breakeven'
-            
-        if hasattr(self, name):
-            print("Nome de Atributo existente. Sobrescrevendo.")
-        
-        if not hasattr(self, NominalYieldCurveName) or not hasattr(self, TipsYieldCurveName):
-            print("Nome de Curvas não existentes. Reveja a função")
-        else:
-            nominal = getattr(self, NominalYieldCurveName)
-            tips = getattr(self, TipsYieldCurveName)
-            
-            setattr(
-                self,
-                name,
-                YieldCurve(
-                    yields_df = nominal.LogYields - tips.LogYields,
-                    modo = 'LogYields',
-                    mensal = nominal.mensal,
-                    fixed_horizon_em_meses = nominal.fixed_horizon_em_meses,
-                    FRA_horizon_em_meses = nominal.FRA_horizon,
-                    fixed_rate_horizon = nominal.fixed_rate_horizon,
-                    inicializar_tudo = nominal.inicializar_tudo)
-                )
-    
-    def getCurva(self, string, date_indices, curve_names = []):
-        
-        for s_ in curve_names:
-            if not hasattr(self, s_):
-                print(f"Não temos nada salvo como {s_} no YieldCurveSet")
-                return None
-        else:
-            
-            Curva = pd.DataFrame()
-            
-            for s_ in curve_names:
-                
-                temp = getattr(self, s_).getCurvaJurosDf(
-                    getattr(getattr(self, s_), string), date_indices)
-                temp.columns = pd.MultiIndex.from_product(
-                    [temp.columns, [s_]], names = ['dtref', 'curva']
-                    )
-                
-                Curva = pd.concat([Curva, temp], axis = 1)
-            
-            return Curva
-    
-    def plotCurvasDate(self, string, date_indices, title_string, params = {
-        'figsize': (14,7), 'grid': True,
-        'lw': 2, 'fontsize': 14
-    }, max_vertex = 120):
-        
-        temp_df = self.getCurva(
-            string, date_indices,
-            curve_names = ['nominal','tips','breakeven'])
-        
-        cols0 = np.unique([x[0] for x in temp_df])
-        
-        return {date: temp_df[date].loc[temp_df.index <= max_vertex].plot(
-                title = title_string + f' - {date}',
-                xlabel = 'Meses',
-                **params) for date in cols0
-            }
-    
-    # def plotCurva(self, string, date_indices, params = {
-    #     'figsize': (14,7), 'grid': True,
-    #     'lw': 2, 'fontsize': 14
-    # }, max_vertex = 120):
-        
-    #     if not hasattr(self, string):
-    #         print("Não temos nada salvo como atributo em " + string)
-    #         return None
-    #     else:
-    #         return self.plotCurvaDF(
-    #             getattr(self, string), date_indices,
-    #             f'Estrutura a Termo de {string}', params, max_vertex = 120)
 
 # %% Workhorse básico para Yield Curves
 
@@ -539,6 +446,90 @@ class YieldCurve:
             self.createHPRsAnuais()
         self.RXsAnuaisCorretos = self.HPRsAnuais - self.HPRs[[self.fixed_rate_horizon]].rolling(self.fixed_horizon_anual).mean().values
 
+
+# %% Agregador de Yield Curves. Serve para comparar Curvas nominais e reais
+
+class YieldCurveSet:
+    
+    def __init__(self):
+        
+        pass
+    
+    def addYieldCurve(self, YieldCurveObject, YieldCurveName):
+        
+        if hasattr(self, YieldCurveName):
+            print("Nome de Atributo existente. Sobrescrevendo.")
+            
+        setattr(self, YieldCurveName, YieldCurveObject)
+    
+    def addBreakevenCurve(
+            self, NominalYieldCurveName, TipsYieldCurveName, name = None):
+        
+        if name is None:
+            name = 'breakeven'
+            
+        if hasattr(self, name):
+            print("Nome de Atributo existente. Sobrescrevendo.")
+        
+        if not hasattr(self, NominalYieldCurveName) or not hasattr(self, TipsYieldCurveName):
+            print("Nome de Curvas não existentes. Reveja a função")
+        else:
+            nominal = getattr(self, NominalYieldCurveName)
+            tips = getattr(self, TipsYieldCurveName)
+            
+            setattr(
+                self,
+                name,
+                YieldCurve(
+                    yields_df = nominal.LogYields - tips.LogYields,
+                    modo = 'LogYields',
+                    mensal = nominal.mensal,
+                    fixed_horizon_em_meses = nominal.fixed_horizon_em_meses,
+                    FRA_horizon_em_meses = nominal.FRA_horizon,
+                    fixed_rate_horizon = nominal.fixed_rate_horizon,
+                    inicializar_tudo = nominal.inicializar_tudo)
+                )
+    
+    def getCurva(self, string, date_indices, curve_names = []):
+        
+        for s_ in curve_names:
+            if not hasattr(self, s_):
+                print(f"Não temos nada salvo como {s_} no YieldCurveSet")
+                return None
+        else:
+            
+            Curva = pd.DataFrame()
+            
+            for s_ in curve_names:
+                
+                temp = getattr(self, s_).getCurvaJurosDf(
+                    getattr(getattr(self, s_), string), date_indices)
+                temp.columns = pd.MultiIndex.from_product(
+                    [temp.columns, [s_]], names = ['dtref', 'curva']
+                    )
+                
+                Curva = pd.concat([Curva, temp], axis = 1)
+            
+            return Curva
+    
+    def plotCurvasDate(self, string, date_indices, title_string, params = {
+        'figsize': (14,7), 'grid': True,
+        'lw': 2, 'fontsize': 14
+    }, max_vertex = 120):
+        
+        temp_df = self.getCurva(
+            string, date_indices,
+            curve_names = ['nominal','tips','breakeven'])
+        
+        cols0 = np.unique([x[0] for x in temp_df])
+        
+        return {date: temp_df[date].loc[temp_df.index <= max_vertex].plot(
+                title = title_string + f' - {date}',
+                xlabel = 'Meses',
+                **params) for date in cols0
+            }
+    
+
 #%% Classe de Curvas GSK
         
 class GSK_Curve(YieldCurve):
@@ -575,6 +566,13 @@ class GSK_Curve(YieldCurve):
             self.InstantLogFRAs
         )
         
+    def getTipsNominalLogReturns(self, LogQReturns):
+        
+        dates = self.RXs.index
+        
+        self.LogQReturns = LogQReturns
+        self.tipsNominalLogReturns = self.LogRXs + LogQReturns.loc[dates].values
+
     
     def getLogYield_nWithParams_dfAndn(self, params_df, n, name):
         Beta0, Beta1, Beta2, Beta3, Tau1, Tau2 = params_df[['BETA0','BETA1','BETA2','BETA3','TAU1','TAU2']].values.T
@@ -725,7 +723,8 @@ class AffineYieldCurveModel:
         axes.set_title("Yield fit")
         axes.legend()
         mp.show()
-        
+
+
 # %% Modelo do ACM
 class ACMcomClasse(AffineYieldCurveModel):
     
@@ -772,12 +771,14 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
                 self.beta, self.c, self.a, self.Sigma, self.sigmasq_ret)
             self.A, self.B = self.buildAandB(
                 YieldCurveObject, self.K_states, self.risk_free, self.state_df,
-                                    self.mu, self.lambda0, self.lambda1, self.Sigma, self.sigmasq_ret, self.phi,
-                                    divisor_retornos_mensais_centesimais = True)
+                self.mu, self.lambda0, self.lambda1,
+                self.Sigma, self.sigmasq_ret, self.phi,
+                divisor_retornos_mensais_centesimais = True)
             self.A_RF, self.B_RF = self.buildAandB_RF(
                 YieldCurveObject, self.K_states, self.risk_free, self.state_df,
-                                    self.mu, self.lambda0, self.lambda1, self.Sigma, self.sigmasq_ret, self.phi,
-                                    divisor_retornos_mensais_centesimais = True)
+                self.mu, self.lambda0, self.lambda1,
+                self.Sigma, self.sigmasq_ret, self.phi,
+                divisor_retornos_mensais_centesimais = True)
         
         super(ACMcomClasse, self).__init__(
             A = self.A, B = self.B, Sigma = self.Sigma, lambda_vec = np.hstack([self.lambda0,self.lambda1]),
@@ -799,19 +800,8 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
 
     def getStateDF(self, orYields, K_states, mode = 'PCA5'):
         
-        # from sklearn.preprocessing import StandardScaler
-        
         if mode == 'PCA5':
-            # scaledYields = pd.DataFrame(
-            #     StandardScaler(with_std=True).fit_transform(
-            #         orYields.resample('M').last()
-            #         ),
-            #     columns = orYields.columns,
-            #     index = orYields.resample('M').last().index)
-            # scaledYields = YieldCurveObject.LogYields.iloc[:, min_maturity_pca:rx_maturities[-1]].values
-            # scaledYieldCov = scaledYields.cov()
             [eigenvalues, eigenvectors] = np.linalg.eig(orYields.resample('M').last().corr())
-            # yieldPCs = StandardScaler().fit_transform(  orYields @ np.real(eigenvectors)  )
             yieldPCs = orYields @ np.real(eigenvectors)
             state_matrix = pd.DataFrame(
                 yieldPCs.values[:, 0:K_states],
@@ -850,27 +840,34 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
         
         return X_lhs, X_rhs, mu, phi, v_df, v, Sigma_df, Sigma
     
-    def estimateStep2(self, YieldCurveObject, rx_data, v, state_df, K_states, divisor_retornos_mensais_centesimais = True):
+    def estimateStep2(
+            self,
+            YieldCurveObject, rx_data, v, state_df, K_states, 
+            divisor_retornos_mensais_centesimais = True,
+            SURmode = False
+            ):
         
-        selected_rx = rx_data.iloc[
-            :self.t
-            ].T.values / (12*100 if divisor_retornos_mensais_centesimais else 1)   # Exclui a última entrada, já que não conhecemos os excessos de retorno do último período
-        N = selected_rx.shape[0]
-        # print("Shapes dos inputs:", np.ones((1, self.t)).shape, v[:,:self.t].shape, state_df.iloc[:self.t].T.values.shape)
-        Z = np.vstack([
-            np.ones((1, self.t)),
-            v[:,:self.t],
-            state_df.iloc[
+        if not SURmode:
+            selected_rx = rx_data.iloc[
                 :self.t
-                ].T.values
-            ])  #Innovations and lagged X
-        abc = selected_rx @ np.linalg.pinv(Z)
-        E = selected_rx - abc @ Z
-        sigmasq_ret = np.sum(E * E) / E.size
-        
-        a = abc[:, [0]]
-        beta = abc[:, 1:K_states+1].T
-        c = abc[:, K_states+1:]
+                ].T.values / (12*100 if divisor_retornos_mensais_centesimais else 1)   # Exclui a última entrada, já que não conhecemos os excessos de retorno do último período
+            N = selected_rx.shape[0]
+            # print("Shapes dos inputs:", np.ones((1, self.t)).shape, v[:,:self.t].shape, state_df.iloc[:self.t].T.values.shape)
+            Z = np.vstack([
+                self.getAuxColOnes(self.t).T,
+                # np.ones((1, self.t)),
+                v[:,:self.t],
+                state_df.iloc[
+                    :self.t
+                    ].T.values
+                ])  #Innovations and lagged X
+            abc = selected_rx @ np.linalg.pinv(Z)
+            E = selected_rx - abc @ Z
+            sigmasq_ret = np.sum(E * E) / E.size
+            
+            a = abc[:, [0]]
+            beta = abc[:, 1:K_states+1].T
+            c = abc[:, K_states+1:]
         
         return N, Z, abc, E, sigmasq_ret, a, beta, c
     
@@ -914,29 +911,10 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
     def buildAandB_RF(self, YieldCurveObject, K_states, risk_free, state_df,
                    mu, lambda0, lambda1, Sigma, sigmasq_ret, phi,
                    divisor_retornos_mensais_centesimais = True):
-        
-        # Run bond pricing recursions
-        A = np.zeros((1, YieldCurveObject.max_maturity))
-        B = np.zeros((K_states, YieldCurveObject.max_maturity))
-        
-        delta = (
-            risk_free.iloc[:self.t].T.values / (12*100 if divisor_retornos_mensais_centesimais else 1)
-            ) @ np.linalg.pinv(
-                np.vstack([
-                    np.ones((1, self.t)), state_df.iloc[:self.t].T.values
-                    ])
-                )
-        delta0 = delta[[0], [0]]
-        delta1 = delta[[0], 1:]
-        
-        A[0, 0] = - delta0
-        B[:, 0] = - delta1
-        
-        for i in range(0, YieldCurveObject.max_maturity - 1):
-            A[0, i+1] = A[0, i] + B[:, i].T @ (mu) + 1/2 * (B[:, i].T @ Sigma @ B[:, i] + 0 * sigmasq_ret) - delta0
-            B[:, i+1] = B[:, i] @ (phi) - delta1
-            
-        return A, B
+        return self.buildAandB(
+            YieldCurveObject, K_states, risk_free, state_df,
+            mu, np.zeros(lambda0.shape), np.zeros(lambda1.shape), Sigma,
+            sigmasq_ret, phi, divisor_retornos_mensais_centesimais = True)
     
     # Aux Functions para chegar às matrizes de variância e covariância
     def getGeradoraResiduos(self, X):
@@ -946,10 +924,8 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
     
     def getAuxM_V(self, V):
         return self.getGeradoraResiduos(V.T)
-
     
     def getAuxf(self, a, c):
-        
         return np.hstack((a,c))
     
     def getAuxColOnes(self, l):
@@ -964,16 +940,10 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
             ) @ M_V @ np.linalg.solve( Z_ @ M_V @ Z_.T, Z_.T ).T
     
     def getVarVecBeta(sigma2, N, Sigma):
-        
         return sigma2 * np.kron(np.eye(N), np.linalg.inv(Sigma))
-    
-    
-    # def getAuxAbeta(self, beta):
-        
-    #     return np.hstack((a,c))
-    
-#%% 
-# Modelo do ACM
+
+
+#%%  Modelo do ACM diário
 class ACMDaily(AffineYieldCurveModel):
     
     def __init__(self, ACMMensal, YieldCurveObjectDaily):
@@ -1017,3 +987,373 @@ class ACMDaily(AffineYieldCurveModel):
         self.FittedLogYields_RF = YieldCurveObjectDaily.getLogYieldsWithLogDFs(self.FittedLogDF_RF)
         
         self.plotFittedLogYields(YieldCurveObjectDaily.LogYields, self.FittedLogYields)
+        
+        
+# %% Modelo do AACM, modelo de decomposição de curvas nominal e reals
+class AACMcomClasse(AffineYieldCurveModel):
+    
+    def __init__(
+        self,
+        YieldCurveSetObject, risk_free_maturity = 1,
+        maturity_pca_nominal = np.arange(6,126+6,6), K_states_nominal = 3,
+        maturity_pca_tips = np.arange(24,126+6,6), K_states_tips = 2,
+        cpi_pct_change_annualized_bps = None,
+        rx_maturities_nominal = np.array([6] + [12*i for i in range(1,10+1)]),
+        rx_maturities_tips = np.array([12*i for i in range(2,10+1)]),
+        SURmode = True,
+        # max_maturity_pca = 120, state_matrix_mode = 'PCA5',
+        # estimate = True
+        ):
+        
+        self.nominalCurve = YieldCurveSetObject.nominal
+        self.tipsCurve = YieldCurveSetObject.tips
+        self.LogQReturns = YieldCurveSetObject.tips.LogQReturns
+        
+        self.KN = K_states_nominal 
+        self.KR = K_states_tips
+        
+        self.SURmode = SURmode
+        
+        self.rx_data_nominal = self.nominalCurve.LogRXs[rx_maturities_nominal]
+        # self.rx_data_tips = self.tipsCurve.LogRXs[rx_maturities_tips]
+        self.rx_data_tips_nominal = self.tipsCurve.tipsNominalLogReturns[
+            rx_maturities_tips]
+        
+        # Produz o vetor todo de rx_data para estimação
+        self.getCompiledReturns()
+        
+        # Produz os vetores de estado individuais para estimação do modelo
+        self.getIndividualStateDF(K_states_nominal, K_states_tips)
+        # Agrega os Estados em um único estado. Essa agregação está aqui para
+        ## postergarmos a inclusão de medida de uma liquidez
+        self.getStateDF()
+        
+        
+        
+    def getCompiledReturns(self):
+        
+        columns = [f'Nominal - {x}' for x in self.rx_data_nominal] + [
+            f'Tips - {x}' for x in self.rx_data_tips_nominal]
+        
+        self.rx_data = pd.concat([
+            self.rx_data_nominal, self.rx_data_tips_nominal
+            ], axis = 1)
+        self.rx_data.columns = columns
+        
+    
+    def getIndividualStateDF(self, K_states_nominal, K_states_tips):
+        
+        [eigenvalues, eigenvectors] = np.linalg.eig(
+            self.nominalCurve.LogYields.resample('M').last().corr()
+            )
+        yieldPCs = self.nominalCurve.LogYields @ np.real(eigenvectors)
+        self.state_matrix_nominal = pd.DataFrame(
+            yieldPCs.values[:, 0:K_states_nominal],
+            index = self.nominalCurve.LogYields.index,
+            columns = [f'PCA Nominal {x}' for x in range(K_states_nominal)]
+            )
+        
+        [eigenvalues, eigenvectors] = np.linalg.eig(
+            self.tipsCurve.LogYields.resample('M').last().corr()
+            )
+        yieldPCs = self.tipsCurve.LogYields @ np.real(eigenvectors)
+        self.state_matrix_tips = pd.DataFrame(
+            yieldPCs.values[:, 0:K_states_tips],
+            index = self.tipsCurve.LogYields.index,
+            columns = [f'PCA Tips {x}' for x in range(K_states_tips)]
+            )
+        
+    def getStateDF(self):
+        
+        if not hasattr(self, 'LiquidityState'):
+            print("Não temos nada salvo como atributo em LiquidityState ainda")
+            self.state_matrix = pd.concat([
+                self.state_matrix_nominal, self.state_matrix_tips
+                ], axis = 1)
+        else:
+            print("""É necessário unir o dataframe de estados com a liquidez.
+                  Vou deixar o algoritmo quebrar.""")
+    
+    def getAuxColOnes(self, l):
+        return np.ones((l,1))
+    
+    def estimateStep1(self):
+        
+        regressand = self.rx_data.loc[self.estimateStep1Dates].values.T
+        regressor = self.estimateStep1Regressor().T
+        abc = regressand @ np.linalg.pinv(regressor)
+        
+        E_ols = regressand - abc @ regressor
+        sigmasq_ret_ols = np.sum(E_ols * E_ols) / E_ols.size
+        
+        states_dim = (regressor.shape[0]-1)//2
+        
+        BPhi_ols = abc[:, 1:states_dim+1].T
+        B_ols = abc[:, states_dim+1:]
+        
+        if self.SURmode:
+            
+            PhiTil_gls = - np.linalg.solve(
+                B_ols.T @ np.linalg.solve(sigmasq_ret_ols, B_ols ),
+                B_ols.T @ np.linalg.solve(sigmasq_ret_ols, BPhi_ols )
+                )
+            SURregressor = np.vstack([
+                regressor[:1,:],
+                - PhiTil_gls @ regressor[1:states_dim+1,:] + regressor[states_dim+1:,:]
+                ])
+            
+            aB = regressand @ np.linalg.pinv(SURregressor)
+            
+            alpha_gls = aB[:, :1]
+            B_gls = aB[:, 1:]
+            
+            mu_X = self.state_matrix.mean(axis = 0).values[:,np.newaxis]
+            
+            var_regressand = (regressor[states_dim+1:] - mu_X)
+            var_regressor = (regressor[1:states_dim+1] - mu_X)
+            Phi = var_regressand @ np.linalg.pinv(var_regressor)
+            var_resid = var_regressand - Phi @ var_regressor
+            var_sigmasq = (var_resid @ var_resid.T) / var_resid.shape[1]
+            
+            gamma_gls = self.estimateStep1GammaGls(
+                B_gls,
+                PhiTil_gls,
+                regressor[:1],
+                regressor[1:states_dim+1],
+                regressor[states_dim+1:])
+            
+            muTil_gls = - np.linalg.solve(
+                B_gls.T @ np.linalg.solve(sigmasq_ret_ols, B_gls), B_gls.T
+                ) @ np.linalg.solve(
+                sigmasq_ret_ols, alpha_gls + 1/2*gamma_gls)
+            
+            lambda_0 = (np.eye(states_dim) - Phi) @ mu_X - muTil_gls
+            lambda_1 = Phi - PhiTil_gls
+            
+            
+            
+        return regressor
+        
+        
+    def estimateStep1Regressor(self):
+        
+        self.estimateStep1FullDates = self.state_matrix.dropna().index
+        self.estimateStep1Dates = self.estimateStep1FullDates[:-1]
+        
+        
+        self.estimateStep1_state_matrix_t = self.state_matrix.loc[
+            self.estimateStep1Dates]
+        self.estimateStep1_state_matrix_t1 = self.state_matrix.shift(-1).loc[
+            self.estimateStep1Dates]
+        
+        self.i_T = self.getAuxColOnes(self.estimateStep1_state_matrix_t.shape[0])
+        
+        return np.hstack([
+            self.i_T, 
+            self.estimateStep1_state_matrix_t.values,
+            self.estimateStep1_state_matrix_t1.values
+            ])
+    
+    def estimateStep1GammaGls(
+            self, B_gls, PhiTil_gls,
+            i_T, X_, X):
+        
+        return None
+        
+        
+    
+    # Aux Functions para chegar às matrizes de variância e covariância
+    def getGeradoraResiduos(self, X):
+        """Input: matriz X TxK"""
+        T, K = X.shape
+        return np.eye(T) - X @ np.linalg.solve(X.T @ X, X.T)
+    
+    def getAuxM_V(self, V):
+        return self.getGeradoraResiduos(V.T)
+    
+    # def buildTipsNominalReturn(self):
+        
+    #     self.TipsNominalReturn = 
+        
+#         if not YieldCurveSetObject.mensal:
+#             print("""Precisamos trabalhar o PCA e regressão nos dados mensalizados. Precisamos:
+# - Criar os pesos dos PCAs a partir dos dados mensalizados
+# - Caso queira trabalhar com o modelo com mu = 0, demean a curva. Acho que não vale a pena. Desenvolvi o modelo original sem fazer isso.
+# - Adaptar o cálculo dos retornos para 21 dias úteis (ou algum outro período que o valha).
+#     Seria o caso de incluir uma estimativa da matriz de covariância que leve em conta as autocovariâncias dos excessos de retornos sobrepostos?
+# Minha intuição é que sim, mas ainda preciso pensar nisso.""")
+            
+        
+#         self.AffineYieldCurveModelType = f'ACM-{state_matrix_mode}'
+#         self.mensal = YieldCurveSetObject.mensal
+        
+#         self.risk_free = YieldCurveObject.LogYields[[risk_free_maturity]]
+#         self.rx_data = YieldCurveObject.LogRXs[rx_maturities]
+        
+#         self.t = YieldCurveObject.LogYields.shape[0] - YieldCurveObject.fixed_horizon
+#         self.state_matrix_mode = state_matrix_mode
+        
+#         self.K_states = K_states
+        
+#         if estimate:
+#             self.orYields = YieldCurveObject.LogYields.iloc[
+#                 :, min_maturity_pca:max_maturity_pca
+#                 ].copy()
+            
+#             self.state_df = self.getStateDF(
+#                 self.orYields, self.K_states, mode = self.state_matrix_mode)
+#             self.X_lhs, self.X_rhs, self.mu, self.phi, self.v_df, self.v, self.Sigma_df, self.Sigma = self.estimateStep1(
+#                 self.state_df)
+#             self.N, self.Z, self.abc, self.E, self.sigmasq_ret, self.a, self.beta, self.c = self.estimateStep2(
+#                 YieldCurveObject, self.rx_data, self.v, self.state_df, self.K_states)
+#             self.BStar, self.lambda1, self.lambda0 = self.estimateStep3(
+#                 self.beta, self.c, self.a, self.Sigma, self.sigmasq_ret)
+#             self.A, self.B = self.buildAandB(
+#                 YieldCurveObject, self.K_states, self.risk_free, self.state_df,
+#                 self.mu, self.lambda0, self.lambda1,
+#                 self.Sigma, self.sigmasq_ret, self.phi,
+#                 divisor_retornos_mensais_centesimais = True)
+#             self.A_RF, self.B_RF = self.buildAandB_RF(
+#                 YieldCurveObject, self.K_states, self.risk_free, self.state_df,
+#                 self.mu, self.lambda0, self.lambda1,
+#                 self.Sigma, self.sigmasq_ret, self.phi,
+#                 divisor_retornos_mensais_centesimais = True)
+        
+#         super(ACMcomClasse, self).__init__(
+#             A = self.A, B = self.B, Sigma = self.Sigma, lambda_vec = np.hstack([self.lambda0,self.lambda1]),
+#             A_RF = self.A_RF, B_RF = self.B_RF,
+#             state_matrix = self.state_df,
+#             risk_free = self.risk_free)
+        
+#         self.getRiskPrice()
+#         self.getLogKernelDistribution()
+#         self.getMaximalSharpeRatio()
+        
+#         # self.FittedLogDF = self.getFittedLogDFs(self.A, self.B, self.state_df)
+#         self.FittedLogYields = YieldCurveObject.getLogYieldsWithLogDFs(self.FittedLogDF)
+#         self.FittedLogYields_RF = YieldCurveObject.getLogYieldsWithLogDFs(self.FittedLogDF_RF)
+        
+#         self.plotFittedLogYields(YieldCurveObject.LogYields, self.FittedLogYields)
+
+#     def estimateStep1(self, X_df):
+#         """Estima o VAR relacionado à transição dos estados.
+#         Para fazer isso, usamos o dataframe original dos dados.
+#         Isso é feito para usar a infra de VAR do python.
+#         """
+        
+#         X_lhs = X_df.iloc[1:].T.values  #X_t+1. Left hand side of VAR.
+#         t = X_lhs.shape[1]
+#         X_rhs = np.vstack([
+#             np.ones((1, t)),
+#             X_df.iloc[:-1].T.values
+#             ]) #X_t and a constant.
+#         var_coeffs = (X_lhs @ np.linalg.pinv(X_rhs))
+#         mu = var_coeffs[:, [0]]
+#         phi = var_coeffs[:, 1:]
+        
+#         # O índice do v_df se refere ao dia em que ele entra no estado X_lhs.
+#         # Isso significa que ele é conhecido quando o estado é conhecido.
+#         v_df = pd.DataFrame(
+#             (X_lhs - var_coeffs @ X_rhs).T,
+#             index = X_df.index[1:],
+#             columns = X_df.columns
+#             )
+#         v = v_df.values.T
+#         Sigma_df = v_df.cov(ddof=0)
+#         Sigma = Sigma_df.values
+        
+#         return X_lhs, X_rhs, mu, phi, v_df, v, Sigma_df, Sigma
+    
+#     def estimateStep2(
+#             self,
+#             YieldCurveObject, rx_data, v, state_df, K_states, 
+#             divisor_retornos_mensais_centesimais = True,
+#             SURmode = False
+#             ):
+        
+#         if not SURmode:
+#             selected_rx = rx_data.iloc[
+#                 :self.t
+#                 ].T.values / (12*100 if divisor_retornos_mensais_centesimais else 1)   # Exclui a última entrada, já que não conhecemos os excessos de retorno do último período
+#             N = selected_rx.shape[0]
+#             # print("Shapes dos inputs:", np.ones((1, self.t)).shape, v[:,:self.t].shape, state_df.iloc[:self.t].T.values.shape)
+#             Z = np.vstack([
+#                 self.getAuxColOnes(self.t).T,
+#                 # np.ones((1, self.t)),
+#                 v[:,:self.t],
+#                 state_df.iloc[
+#                     :self.t
+#                     ].T.values
+#                 ])  #Innovations and lagged X
+#             abc = selected_rx @ np.linalg.pinv(Z)
+#             E = selected_rx - abc @ Z
+#             sigmasq_ret = np.sum(E * E) / E.size
+            
+#             a = abc[:, [0]]
+#             beta = abc[:, 1:K_states+1].T
+#             c = abc[:, K_states+1:]
+        
+#         return N, Z, abc, E, sigmasq_ret, a, beta, c
+    
+#     def estimateStep3(self, beta, c, a, Sigma, sigmasq_ret):
+        
+#         # Step (3) of the three-step procedure: Run cross-sectional regressions
+#         BStar = np.squeeze(np.apply_along_axis(vec_quad_form, 1, beta.T))
+#         betapinv = np.linalg.pinv(beta.T)
+#         lambda1 = betapinv @ c
+#         lambda0 = betapinv @ (a + 1/2 * (BStar @ vec(Sigma) + sigmasq_ret))
+        
+#         return BStar, lambda1, lambda0
+        
+#     def buildAandB(self, YieldCurveObject, K_states, risk_free, state_df,
+#                    mu, lambda0, lambda1, Sigma, sigmasq_ret, phi,
+#                    divisor_retornos_mensais_centesimais = True):
+        
+#         # Run bond pricing recursions
+#         A = np.zeros((1, YieldCurveObject.max_maturity))
+#         B = np.zeros((K_states, YieldCurveObject.max_maturity))
+        
+#         delta = (
+#             risk_free.iloc[:self.t].T.values / (12*100 if divisor_retornos_mensais_centesimais else 1)
+#             ) @ np.linalg.pinv(
+#                 np.vstack([
+#                     np.ones((1, self.t)), state_df.iloc[:self.t].T.values
+#                     ])
+#                 )
+#         delta0 = delta[[0], [0]]
+#         delta1 = delta[[0], 1:]
+        
+#         A[0, 0] = - delta0
+#         B[:, 0] = - delta1
+        
+#         for i in range(0, YieldCurveObject.max_maturity - 1):
+#             A[0, i+1] = A[0, i] + B[:, i].T @ (mu - lambda0) + 1/2 * (B[:, i].T @ Sigma @ B[:, i] + 0 * sigmasq_ret) - delta0
+#             B[:, i+1] = B[:, i] @ (phi - lambda1) - delta1
+            
+#         return A, B
+    
+#     def buildAandB_RF(self, YieldCurveObject, K_states, risk_free, state_df,
+#                    mu, lambda0, lambda1, Sigma, sigmasq_ret, phi,
+#                    divisor_retornos_mensais_centesimais = True):
+#         return self.buildAandB(
+#             YieldCurveObject, K_states, risk_free, state_df,
+#             mu, np.zeros(lambda0.shape), np.zeros(lambda1.shape), Sigma,
+#             sigmasq_ret, phi, divisor_retornos_mensais_centesimais = True)
+
+    
+#     def getAuxf(self, a, c):
+#         return np.hstack((a,c))
+    
+
+    
+#     def getAuxZ_(self, i_T, X_):
+#         return np.hstack([i_T, X_.T]).T
+    
+#     def getLambdaHat(self, beta, rx_matrix, Bstar, Sigma, i_T, sigma2, i_N, M_V, Z_):
+#         return np.linalg.solve(beta @ beta.T, beta) @ (
+#             rx_matrix + 1/2 * Bstar @ vec(Sigma) @ i_T.T + 1/2 * sigma2 * i_N @ i_T.T
+#             ) @ M_V @ np.linalg.solve( Z_ @ M_V @ Z_.T, Z_.T ).T
+    
+#     def getVarVecBeta(sigma2, N, Sigma):
+#         return sigma2 * np.kron(np.eye(N), np.linalg.inv(Sigma))
+

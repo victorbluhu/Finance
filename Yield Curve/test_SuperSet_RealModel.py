@@ -16,6 +16,9 @@ import datetime as dt
 import YieldCurveLib as yc
 import matplotlib.pyplot as mp
 
+import math
+import pandas as pd
+
 # %% Monta as curvas
 os.chdir(r'C:\Users\Victor\Dropbox\Python Scripts\Repositories\Finance')
 # params = yc.montaParametrosGSKdoFED(tipo = 'nominal')
@@ -25,23 +28,26 @@ nominal = yc.fetchCurvaGSKParametrizada(
         tipo = 'nominal', max_maturity = 360,
         mensal = True,
         min_date = dt.datetime(1989,12,1),
-        max_date = dt.datetime(2023,12,31)
+        max_date = dt.datetime(2023,6,30)
         )
 
 tips = yc.fetchCurvaGSKParametrizada(
         tipo = 'tips', max_maturity = 360,
         mensal = True,
         min_date = dt.datetime(1989,12,1),
-        max_date = dt.datetime(2023,12,31)
+        max_date = dt.datetime(2023,6,30)
         )
 
-# ax = YieldCurveObject.plotCurva('Yields', YieldCurveObject.dates[-5:])
-# # Optional parameters for ax
-# # ax.set_title('...', fontsize = 14)
-# mp.show()
+# Inflation returns
+CPIU = pd.read_csv(
+    'Data\CPIAUCNS.csv', index_col = 0, parse_dates=True
+    )
+CPIU_returns = ((1 + CPIU.pct_change())**12*100-100).shift(-1)
+CPIULogReturns = (CPIU.applymap(math.log).diff()*12*100).shift(-1)
 
+tips.getTipsNominalLogReturns(CPIULogReturns)
 
-# modeloACM = yc.ACMcomClasse(YieldCurveObject)
+tips.tipsNominalLogReturns
 
 # %%
 CurveSet = yc.YieldCurveSet()
@@ -61,8 +67,12 @@ axes_dict = CurveSet.plotCurvasDate(
     [dt.datetime(2023,1,31),dt.datetime(2023,2,28)],
     title_string = 'Estrutura a Termo')
 
-# %% Modelo ACM
+
+# %% Modelo AACM
 # Decomposing Real and Nominal Yield Curves - Staff Reports
 # Michael Abrahams, Tobias Adrian, Richard K. Crump, and Emanuel Moench
 
+AACMM = yc.AACMcomClasse(CurveSet)
 
+
+# %%
