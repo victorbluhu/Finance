@@ -781,7 +781,8 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
                 divisor_retornos_mensais_centesimais = True)
         
         super(ACMcomClasse, self).__init__(
-            A = self.A, B = self.B, Sigma = self.Sigma, lambda_vec = np.hstack([self.lambda0,self.lambda1]),
+            A = self.A, B = self.B, Sigma = self.Sigma, lambda_vec = np.hstack(
+                [self.lambda0,self.lambda1]),
             A_RF = self.A_RF, B_RF = self.B_RF,
             state_matrix = self.state_df,
             risk_free = self.risk_free)
@@ -1002,7 +1003,7 @@ class AACMcomClasse(AffineYieldCurveModel):
         rx_maturities_tips = np.array([12*i for i in range(2,10+1)]),
         SURmode = True,
         # max_maturity_pca = 120, state_matrix_mode = 'PCA5',
-        # estimate = True
+        estimate = True
         ):
         
         self.nominalCurve = YieldCurveSetObject.nominal
@@ -1013,6 +1014,9 @@ class AACMcomClasse(AffineYieldCurveModel):
         self.KR = K_states_tips
         
         self.SURmode = SURmode
+        
+        self.rx_maturities_nominal = rx_maturities_nominal
+        self.rx_maturities_tips = rx_maturities_tips
         
         self.rx_data_nominal = self.nominalCurve.LogRXs[rx_maturities_nominal]
         # self.rx_data_tips = self.tipsCurve.LogRXs[rx_maturities_tips]
@@ -1028,6 +1032,11 @@ class AACMcomClasse(AffineYieldCurveModel):
         ## postergarmos a inclusão de medida de uma liquidez
         self.getStateDF()
         
+        # Estima os parâmetros
+        if estimate:
+            self.estimate()
+            print("Ainda falta estimar os parâmetros da inflação")
+            
         
         
     def getCompiledReturns(self):
@@ -1073,23 +1082,37 @@ class AACMcomClasse(AffineYieldCurveModel):
         else:
             print("""É necessário unir o dataframe de estados com a liquidez.
                   Vou deixar o algoritmo quebrar.""")
+        
+        self.states_dim = self.state_matrix.shape[1]
     
     def getAuxColOnes(self, l):
         return np.ones((l,1))
     
-    def estimateStep1(self):
+    def getRegressand(self):
+        return self.rx_data.loc[self.estimateStep1Dates].values.T
+    
+    def estimate(self):
         
-        regressand = self.rx_data.loc[self.estimateStep1Dates].values.T
-        regressor = self.estimateStep1Regressor().T
+        regressor = self.estimateAuxRegressor().T
+        regressand = self.getRegressand()/12
+        
         abc = regressand @ np.linalg.pinv(regressor)
         
+        self.regressor = regressor
+        self.regressand = regressand
+        self.abc = abc
+        
         E_ols = regressand - abc @ regressor
-        sigmasq_ret_ols = np.sum(E_ols * E_ols) / E_ols.size
+        sigmasq_ret_ols = E_ols @ E_ols.T / E_ols.shape[1]
         
-        states_dim = (regressor.shape[0]-1)//2
+        self.E = E_ols
+        self.sigmasq_ret = sigmasq_ret_ols
         
-        BPhi_ols = abc[:, 1:states_dim+1].T
-        B_ols = abc[:, states_dim+1:]
+        BPhi_ols = abc[:, 1:self.states_dim+1]
+        B_ols = abc[:, self.states_dim+1:]
+        
+        self.BPhi_ols = BPhi_ols
+        self.B_ols = B_ols
         
         if self.SURmode:
             
@@ -1097,45 +1120,55 @@ class AACMcomClasse(AffineYieldCurveModel):
                 B_ols.T @ np.linalg.solve(sigmasq_ret_ols, B_ols ),
                 B_ols.T @ np.linalg.solve(sigmasq_ret_ols, BPhi_ols )
                 )
+            
+            self.PhiTil = PhiTil_gls
+            
             SURregressor = np.vstack([
                 regressor[:1,:],
-                - PhiTil_gls @ regressor[1:states_dim+1,:] + regressor[states_dim+1:,:]
+                - PhiTil_gls @ regressor[1:self.states_dim+1,:] +\
+                    regressor[self.states_dim+1:,:]
                 ])
-            
             aB = regressand @ np.linalg.pinv(SURregressor)
-            
             alpha_gls = aB[:, :1]
             B_gls = aB[:, 1:]
             
+            self.alpha = alpha_gls
+            self.B = B_gls
+            
             mu_X = self.state_matrix.mean(axis = 0).values[:,np.newaxis]
             
-            var_regressand = (regressor[states_dim+1:] - mu_X)
-            var_regressor = (regressor[1:states_dim+1] - mu_X)
+            var_regressand = (regressor[self.states_dim+1:] - mu_X)
+            var_regressor = (regressor[1:self.states_dim+1] - mu_X)
             Phi = var_regressand @ np.linalg.pinv(var_regressor)
             var_resid = var_regressand - Phi @ var_regressor
-            var_sigmasq = (var_resid @ var_resid.T) / var_resid.shape[1]
+            var_sigmasq = var_resid @ var_resid.T / var_resid.shape[1]
             
-            gamma_gls = self.estimateStep1GammaGls(
-                B_gls,
-                PhiTil_gls,
-                regressor[:1],
-                regressor[1:states_dim+1],
-                regressor[states_dim+1:])
+            self.mu_X = mu_X
+            self.Phi = Phi
+            self.Sigma = var_sigmasq
             
+            gamma_gls = np.diag(self.B @ self.Sigma @ self.B.T).reshape((-1,1))
             muTil_gls = - np.linalg.solve(
                 B_gls.T @ np.linalg.solve(sigmasq_ret_ols, B_gls), B_gls.T
                 ) @ np.linalg.solve(
                 sigmasq_ret_ols, alpha_gls + 1/2*gamma_gls)
             
-            lambda_0 = (np.eye(states_dim) - Phi) @ mu_X - muTil_gls
-            lambda_1 = Phi - PhiTil_gls
+            self.gamma = gamma_gls
+            self.muTil = muTil_gls        
             
-            
-            
-        return regressor
+            self.lambda_0 = (np.eye(self.states_dim) - Phi) @ mu_X - muTil_gls
+            self.lambda_1 = Phi - PhiTil_gls
         
+        Y = self.nominalCurve.FixedRate.loc[self.estimateStep1Dates].values
+        X = np.hstack([
+            self.getAuxColOnes(len(self.estimateStep1Dates)),
+            self.state_matrix.loc[self.estimateStep1Dates].values
+            ])
+
+        deltas = Y.T @ np.linalg.pinv(X.T)
+        self.delta_0, self.delta_1 = deltas[:,:1], deltas[:,1:].T
         
-    def estimateStep1Regressor(self):
+    def estimateAuxRegressor(self):
         
         self.estimateStep1FullDates = self.state_matrix.dropna().index
         self.estimateStep1Dates = self.estimateStep1FullDates[:-1]
@@ -1152,15 +1185,122 @@ class AACMcomClasse(AffineYieldCurveModel):
             self.i_T, 
             self.estimateStep1_state_matrix_t.values,
             self.estimateStep1_state_matrix_t1.values
-            ])
+            ])    
     
-    def estimateStep1GammaGls(
-            self, B_gls, PhiTil_gls,
-            i_T, X_, X):
+    
+    def buildNominalAandB(self, YieldCurveObject, K_states, risk_free, state_df,
+                    mu, lambda0, lambda1, Sigma, sigmasq_ret, phi,
+                    divisor_retornos_mensais_centesimais = True):
         
-        return None
+        # Run bond pricing recursions
+        A = np.zeros((1, self.nominalCurve.max_maturity))
+        B = np.zeros((self.state_matrix.shape[1], self.nominalCurve.max_maturity))
         
+        A[0, 0] = - self.delta0
+        B[:, 0] = - self.delta_1
         
+        for i in range(0, B.shape[1] - 1):
+            A[0, i+1] = A[0, i] + B[:, i].T @ (self.muTil - self.lambda_0) +\
+                1/2 * (B[:, i].T @ self.Sigma @ B[:, i] + 0 * self.sigmasq_ret) - self.delta0
+            B[:, i+1] = B[:, i] @ self.PhiTil - self.delta_1
+        
+        self.nominalA, self.nominalB = A, B
+    
+    def estimatePi(self):
+        
+        self.iterPi = 0
+        self.getPhiArray()
+        # auxGetABfromPi(self, pi)
+        
+        # Find the minimum value of func
+        from scipy.optimize import minimize
+        res = minimize(
+            self.lossFromFitTipsYieldsFromPi,
+            # bounds = (),
+            x0 = tuple([1] + self.state_matrix.shape[1]*[1]))
+        
+        self.pi_0 = np.array([[res.x[0]]])
+        self.pi_1 = np.array([[x for x in res.x[1:]]])
+        
+        print(res)
+    
+    def getPhiArray(self):
+        
+        phiArray = [np.eye(self.PhiTil.shape[0])]
+        for i in range(self.tipsCurve.max_maturity):
+            phiArray.append(self.PhiTil @ phiArray[-1])
+        
+        self.phiArray = np.array(phiArray).cumsum(axis = 0)
+    
+    def auxGetABfromPi(self, pi):
+        
+        pi_0 = np.array([[pi[0]]])
+        pi_1 = np.array([[x for x in pi[1:]]]).T
+        
+        B = np.hstack([
+            (- self.delta_1.T @ self.phiArray[i] +\
+                pi_1.T @ (self.phiArray[i+1] - np.eye(self.states_dim))).T
+                for i in range(self.tipsCurve.max_maturity)
+            ])
+        
+        A = [0]
+        for i in range(self.tipsCurve.max_maturity):
+            if i == 0:
+                B_minus = np.zeros((self.states_dim,1)) + pi_1
+            else:
+                B_minus = B[:,i-1:i] + pi_1
+            A.append(float(
+                A[-1] + B_minus.T @ self.muTil + 1/2 * B_minus.T @ 
+                    self.Sigma @ B_minus - self.delta_0 + pi_0
+                    ))
+        A = np.array([A[1:]])
+        
+        return A, B
+    
+    def fitTipsYieldsFromPi(self, pi):
+        
+        A, B = self.auxGetABfromPi(pi)
+        
+        fit = (A + self.state_matrix.loc[self.estimateStep1Dates] @ B).rename(
+            {i: i+1 for i in range(self.state_matrix.shape[1])}, axis = 1
+            )[self.rx_maturities_tips]
+        
+        # Multiplica por -12/n, sendo n a maturidade
+        return fit * (-12) / np.array([[x for x in fit]])
+        # return self.tipsCurve.getLogYieldsWithLogDFs(fit)
+    
+    def lossFromFitTipsYieldsFromPi(self, pi):
+        
+        fit = self.fitTipsYieldsFromPi(pi)
+        error = self.tipsCurve.LogYields.loc[
+            self.estimateStep1Dates, self.rx_maturities_tips
+            ] - fit
+        
+        loss = (error**2).sum().sum()
+        self.iterPi += 1
+        print(f'{self.iterPi}: {loss}')
+        print(self.iterPi*' ' + f': {fit.iloc[-1:]}')
+        
+        return loss
+    
+    # def buildTipsAandB(self, YieldCurveObject, K_states, risk_free, state_df,
+    #                 mu, lambda0, lambda1, Sigma, sigmasq_ret, phi,
+    #                 divisor_retornos_mensais_centesimais = True):
+        
+    #     # Run bond pricing recursions
+    #     A = np.zeros((1, self.nominalCurve.max_maturity))
+    #     B = np.zeros((self.state_matrix.shape[1], self.nominalCurve.max_maturity))
+        
+    #     A[0, 0] = - self.delta0
+    #     B[:, 0] = - self.delta_1
+        
+    #     for i in range(0, B.shape[1] - 1):
+    #         A[0, i+1] = A[0, i] + B[:, i].T @ (self.muTil - self.lambda_0) +\
+    #             1/2 * (B[:, i].T @ self.Sigma @ B[:, i] + 0 * self.sigmasq_ret) - self.delta0
+    #         B[:, i+1] = B[:, i] @ self.PhiTil - self.delta_1
+        
+    #     self.A, self.B = A, B
+    
     
     # Aux Functions para chegar às matrizes de variância e covariância
     def getGeradoraResiduos(self, X):
@@ -1170,6 +1310,7 @@ class AACMcomClasse(AffineYieldCurveModel):
     
     def getAuxM_V(self, V):
         return self.getGeradoraResiduos(V.T)
+    
     
     # def buildTipsNominalReturn(self):
         
@@ -1304,33 +1445,6 @@ class AACMcomClasse(AffineYieldCurveModel):
 #         lambda0 = betapinv @ (a + 1/2 * (BStar @ vec(Sigma) + sigmasq_ret))
         
 #         return BStar, lambda1, lambda0
-        
-#     def buildAandB(self, YieldCurveObject, K_states, risk_free, state_df,
-#                    mu, lambda0, lambda1, Sigma, sigmasq_ret, phi,
-#                    divisor_retornos_mensais_centesimais = True):
-        
-#         # Run bond pricing recursions
-#         A = np.zeros((1, YieldCurveObject.max_maturity))
-#         B = np.zeros((K_states, YieldCurveObject.max_maturity))
-        
-#         delta = (
-#             risk_free.iloc[:self.t].T.values / (12*100 if divisor_retornos_mensais_centesimais else 1)
-#             ) @ np.linalg.pinv(
-#                 np.vstack([
-#                     np.ones((1, self.t)), state_df.iloc[:self.t].T.values
-#                     ])
-#                 )
-#         delta0 = delta[[0], [0]]
-#         delta1 = delta[[0], 1:]
-        
-#         A[0, 0] = - delta0
-#         B[:, 0] = - delta1
-        
-#         for i in range(0, YieldCurveObject.max_maturity - 1):
-#             A[0, i+1] = A[0, i] + B[:, i].T @ (mu - lambda0) + 1/2 * (B[:, i].T @ Sigma @ B[:, i] + 0 * sigmasq_ret) - delta0
-#             B[:, i+1] = B[:, i] @ (phi - lambda1) - delta1
-            
-#         return A, B
     
 #     def buildAandB_RF(self, YieldCurveObject, K_states, risk_free, state_df,
 #                    mu, lambda0, lambda1, Sigma, sigmasq_ret, phi,

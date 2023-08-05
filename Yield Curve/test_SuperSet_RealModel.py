@@ -18,6 +18,7 @@ import matplotlib.pyplot as mp
 
 import math
 import pandas as pd
+import numpy as np
 
 # %% Monta as curvas
 os.chdir(r'C:\Users\Victor\Dropbox\Python Scripts\Repositories\Finance')
@@ -72,7 +73,28 @@ axes_dict = CurveSet.plotCurvasDate(
 # Decomposing Real and Nominal Yield Curves - Staff Reports
 # Michael Abrahams, Tobias Adrian, Richard K. Crump, and Emanuel Moench
 
-AACMM = yc.AACMcomClasse(CurveSet)
+AACM = yc.AACMcomClasse(CurveSet)
+state_matrix = AACM.state_matrix
+
+Y = AACM.nominalCurve.FixedRate.loc[AACM.estimateStep1Dates]
+X = np.hstack([
+    AACM.getAuxColOnes(len(AACM.estimateStep1Dates)),
+    state_matrix.loc[AACM.estimateStep1Dates].values
+    ])
+
+deltas = Y.values.T @ np.linalg.pinv(X.T)
+
+
+AACM.estimate()
+AACM.estimatePi()
+AACM.fitTipsYieldsFromPi(np.hstack([AACM.pi_0, AACM.pi_1]).flatten())
+AACM.tipsCurve.LogYields
+# AACM.getPhiArray()
+
+# import numpy as np
+# for x in AACM.B:
+#     print(x[np.newaxis,:].shape)
+
 
 
 # %%
