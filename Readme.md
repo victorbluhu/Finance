@@ -92,9 +92,13 @@ External/Internal Instruments / Local Projections para o VAR
  - Mais afeito a modelos low frequency. Semanal já soa overstretch. Cabível,
  é claro, mas overstretch
 
-## Atribuição de Performance
+## Fronteira Eficiente
 ..
 
+<!--
+## Atribuição de Performance
+..
+-->
 <!--
 4. [Trading Strategy](#trading-strategy)
 # Trading Strategy
