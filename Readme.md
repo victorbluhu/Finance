@@ -15,7 +15,14 @@ Repositório de dados e projetos de Finanças
 4. [Trading Strategy](#trading-strategy)
 
 # Introdução
-Nesta pasta eu concentro alguns estudos realizados com fatores de risco. Inicialmente, temos 3 projetos a realizar: [cálculo da Fronteira Eficiente](#fronteira-eficiente), [estimação de choques de política monetária em ativos](#choques-de-política-monetária) e [atribuição de performance a índices setoriais e fundos](#atribuição-de-performance).
+Neste repositório eu concentro alguns estudos realizados (ou suas etapas preliminares).
+
+A parte mais avançada hoje é a modelagem de curva de juros. A partir das classes _YieldCurve_, que concentra os métodos básicos para transformar e visualizar curvas de juros, e _AffineYieldCurveModel_, que concentra os métodos básicos para modelos com SDF e curva lineares nos mesmos estados, implemento o modelo de [Adrian, Crump and Moench (2013)](https://doi.org/10.1016/j.jfineco.2013.04.009) para decompor as taxas de juros nominal observadas na curva US (ou de qualquer outro país de interesse) entre a expectativa risco-neutra da rolagem das taxas curtas e o prêmio de risco cobrado para cada horizonte.
+  Uma extensão que estou desenvolvendo à frente é a de decompor conjuntamente a curva de juros nominais e a curva de juros reais, permitindo criar também uma decomposição da inflação implícita (breakeven).
+
+Na seção seguinte, [Factor Analysis](#factor-analysis), há alguns projetos que utilizam fatores de risco do [Nefin](https://nefin.com.br/data/risk_factors.html) tanto para projetar os prêmios de risco embutidos em outros ativos, quanto como portifólios de equities nos quais buscamos identificar efeitos de política monetária.
+  Um projeto adicional a ser desenvolvido é o de [atribuição de performance a índices setoriais e fundos](#atribuição-de-performance) (cálculo de alphas e betas). Para este projeto, falta basicamente levantar um histórico de performance de fundos de investimento, mas ainda não fui atrás de uma fonte adequada para lidar com viés de sobrevivência. 
+
 
 # Yield Curve
 ...
