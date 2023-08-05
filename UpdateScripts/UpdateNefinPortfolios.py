@@ -71,6 +71,6 @@ df.columns = columns
 #     'Risk Factor - Nefin - Risk_free - Livre de Risco'
 # ]
 
-df.to_csv(r'Data\NefinPorfolios.csv')
+df.to_csv(r'Data\NefinPortfolios.csv')
 
 # read_df = pd.read_csv(r'Data\NefinFactors.csv', index_col=0, parse_dates=True)
