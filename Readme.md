@@ -1,7 +1,9 @@
 ### Tabela de Conteúdos
 1. [Introdução](#introdução)
 2. [Yield Curve](#yield-curve)
-3. [Factor Analysis](#factor-analysis)
+    1. [Nelson-Siegel-Svensson](#nelson-siegel-svensson)
+    2. [Prêmio de Risco da Curva](#prêmio-de-risco-da-curva)
+4. [Factor Analysis](#factor-analysis)
     1. [Choques de Política Monetária](#choques-de-política-monetária)
         1. [Estimação por OLS](#estimação-por-ols)
         2. [Identificação via Event-Study](#identificação-via-event-study)
@@ -25,7 +27,23 @@ Na seção seguinte, [Factor Analysis](#factor-analysis), há alguns projetos qu
 
 
 # Yield Curve
-...
+## Nelson-Siegel-Svensson 
+O workhorse básico para as manipulações de curvas de juros, além da classe _YieldCurve_, que guarda os métodos genéricos relativos a curvas de juros (visualização, conversões entre taxas, log-taxas, log-pu, holding period return, excess return, ...), é o modelo Nelson-Siegel-Svensson[^NSS]. Este é um modelo flexível que permite construir curvas de juros a partir de 4 a 6 parâmetros para qualquer vértice que se queira e a flexibilidade vem das duas "concavidades" que o modelo completo se permite ter: $$i_t(n) = \beta_{0t} + \beta_{1t} \frac{1 - exp(-n/\lambda_{1t})}{n/\lambda_{1t}} + \beta_{2t} \left(\frac{1 - exp(-n/\lambda_{1t})}{n/\lambda_{1t}} - exp(-n/\lambda_{1t}) \right) + \beta_{3t} \left(\frac{1 - exp(-n/\lambda_{2t})}{n/\lambda_{2t}} - exp(-n/\lambda_{2t}) \right).$$ Além disso, optou-se por usar esta implementação básica para construção de curvas de juros pela disponibilidade de curvas de juros utilizando este modelo. Além das curvas da Anbima utilizarem esse modelo, o Fed também disponibiliza versões da curva estimadas para a [curva de juros nominal](#https://www.federalreserve.gov/data/nominal-yield-curve.htm) e a [curva de juros reais](#https://www.federalreserve.gov/data/tips-yield-curve-and-inflation-compensation.htm) para US^[. Estes dados são utilizados para construir os exercícios de estimação do modelo de [Adrian, Crump e Moench (2013)](#https://www.sciencedirect.com/science/article/abs/pii/S0304405X13001335) para a estimação dos Bond-Risk Premium e Expectativa Risco-Neutra embutidos na curva de juros nominal US e também o modelo complementar a este, o [Abrahams, Adrian, Crump e Moench (2016)](#https://doi.org/10.1016/j.jmoneco.2016.10.006), que analisa conjuntamente a curva nominal e a curva real, com implicações de previsão para a breakeven.
+
+A implementação do Nelson-Siegel-Svensson está na classe _GSK\_Curve_, por conta de [Gürkaynak, Sack e Wright (2008)](#https://www.federalreserve.gov/pubs/feds/2008/200805/200805abs.html), que estimaram este modelo para US e começaram o projeto para disponibilização desses dados pelo Fed.
+
+INCLUIR UMA FIGURA DA CURVA MAIS ATUAL DISPONÍVEL PARA US UTILIZANDO A VISUALIZAÇÃO PADRÃO DA LIB.
+
+[^NSS]: Implementação baseada no [Working Paper do NBER ](#https://www.nber.org/papers/w4871), com versão publicada: "Estimating Forward Interest Rates with the Extended Nelson and Siegel Method," Sveriges Riksbank Quarterly Review 1995:3, pp 13-26.
+
+## Prêmio de Risco da Curva
+[Adrian, Crump e Moench (2013)](#https://www.sciencedirect.com/science/article/abs/pii/S0304405X13001335) utilizam um modelo afim da estrutura termo da curva de juros e constróem uma série de argumentos para (1) utilizar os dados observados da curva de juros para caracterizar os estados relevantes para os retornos obtidos de títulos em cada vértice da curva, (2) para utilizar 3 regressões lineares para estimar os prêmios de risco ($\lambda_t = \lambda_0 + \lambda_1 X_t$) associado a cada estado e (3) construir testes de hipótese para entender quais estados são relevantes para prêmio de risco significante. Além disso, pela natureza do modelo deles, títulos em cada vértice têm log-preço (e portanto log-taxas) afins nos estados da economia $$\ln P_t(n) = A_t(n; \lambda_t) + B_t(n;\lambda_t) X_t$$ então, impondo $\lambda_{1} = 0 \implies \lambda_t = \lambda_0$, é possível estimar os preços que refletem apenas a rolagem esperada da taxa de juros $$\ln P_t^{RF}(n) = A_t^{RF}(n; \lambda_0) + B_t^{RF}(n;\lambda_0) X_t$$. A diferença entre as log-taxas associadas a esses preços (y_t(n) = - 12/n * \ln P_t(n)) caracteriza o Bond Risk Premium (BRP).
+
+DISCORRER SOBRE as métricas esperadas e atingidas para a replicação do modelo ACM(2013).
+
+DISCORRER SOBRE (1) O DECLÍNIO DOS BRP ESTIMADOS, (2) SOBRE A RELAÇÃO ESPERADA E VERIFICADA DE RANKEAMENTO ENTRE ELES E SOBRE O AUMENTO RECENTE DOS BRPS PÓS-COVID.
+
+
 
 # Factor Analysis
 
