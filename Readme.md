@@ -50,6 +50,7 @@ Além de calcular a decomposição da última curva disponível, podemos avaliar
 O primeiro e mais saliente feature é o quase perfeito rankeamento entre os prêmios de risco pela horizonte de maturidade do investimento. Isso é intuitivo: quanto maior o horizonte de investimento, menor é a convicção de que as taxas de juros seguirão o caminho esperado e provavelmente maiores são os prêmios cobrados para carregar esse risco. A ordem entre esses prêmios se altera em alguns momentos, mas o padrão predominante é o ordenamento.  
 
 Outro ponto interessante é a queda histórica dos BRPs estimados em todas as maturidades selecionadas, mesmo que não uniformemente no tempo. Parte dessa diminuição é mecanicamente explicada pela queda das taxas de juros e a expectativa de que as taxas de juros se manteriam baixas, no zero lower bound (ZLB), por muito tempo. Mais ainda, em alguns momentos mais conturbados como na crise da Covid-19, o prêmio de risco estimado é negativo, condizente com os agentes quererem pagar para tomar o risco de rolagem, mas eliminar o risco associado a eventos extremos. Aos poucos, parece que estamos voltando ao mundo de prêmios de risco positivos.
+
 ![BRP - Anos Selecionados](Yield%20Curve/Figures/BRP%20-%20Anos%20Selecionados.jpg)
 
 ### Métricas de Replicação
