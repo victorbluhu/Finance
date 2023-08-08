@@ -744,20 +744,22 @@ class ACMcomClasse(AffineYieldCurveModel):
     Seria o caso de incluir uma estimativa da matriz de covariância que leve em conta as autocovariâncias dos excessos de retornos sobrepostos?
 Minha intuição é que sim, mas ainda preciso pensar nisso.""")
             
+        self.YieldCurveObject = YieldCurveObject
         
         self.AffineYieldCurveModelType = f'ACM-{state_matrix_mode}'
-        self.mensal = YieldCurveObject.mensal
+        self.mensal = self.YieldCurveObject.mensal
         
-        self.risk_free = YieldCurveObject.LogYields[[risk_free_maturity]]
-        self.rx_data = YieldCurveObject.LogRXs[rx_maturities]
+        self.risk_free = self.YieldCurveObject.LogYields[[risk_free_maturity]]
+        self.rx_data = self.YieldCurveObject.LogRXs[rx_maturities]
         
-        self.t = YieldCurveObject.LogYields.shape[0] - YieldCurveObject.fixed_horizon
+        self.t = self.YieldCurveObject.LogYields.shape[0] -\
+            self.YieldCurveObject.fixed_horizon
         self.state_matrix_mode = state_matrix_mode
         
         self.K_states = K_states
         
         if estimate:
-            self.orYields = YieldCurveObject.LogYields.iloc[
+            self.orYields = self.YieldCurveObject.LogYields.iloc[
                 :, min_maturity_pca:max_maturity_pca
                 ].copy()
             
@@ -767,6 +769,13 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
                 self.state_df)
             self.N, self.Z, self.abc, self.E, self.sigmasq_ret, self.a, self.beta, self.c = self.estimateStep2(
                 YieldCurveObject, self.rx_data, self.v, self.state_df, self.K_states)
+            
+            self.E_df = pd.DataFrame(
+                self.E.T,
+                columns = self.rx_data.columns,
+                index = self.rx_data.index[:-1]
+                )
+            
             self.BStar, self.lambda1, self.lambda0 = self.estimateStep3(
                 self.beta, self.c, self.a, self.Sigma, self.sigmasq_ret)
             self.A, self.B = self.buildAandB(
@@ -792,12 +801,17 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
         self.getMaximalSharpeRatio()
         
         # self.FittedLogDF = self.getFittedLogDFs(self.A, self.B, self.state_df)
-        self.FittedLogYields = YieldCurveObject.getLogYieldsWithLogDFs(self.FittedLogDF)
-        self.FittedLogYields_RF = YieldCurveObject.getLogYieldsWithLogDFs(self.FittedLogDF_RF)
+        self.FittedLogYields = self.YieldCurveObject.getLogYieldsWithLogDFs(self.FittedLogDF)
+        self.FittedLogYields_RF = self.YieldCurveObject.getLogYieldsWithLogDFs(self.FittedLogDF_RF)
+        self.BRP = self.YieldCurveObject.LogYields - self.FittedLogYields_RF
         
-        self.plotFittedLogYields(YieldCurveObject.LogYields, self.FittedLogYields)
+        # self.plotFittedLogYields(YieldCurveObject.LogYields, self.FittedLogYields)
         
+        self.YieldPricingError = self.YieldCurveObject.LogYields - self.FittedLogYields
         
+        self.avaliaResiduos(
+            smpl= self.YieldCurveObject.LogYields.index[:-1],
+            columns = [12,24,36,60,84,120])
 
     def getStateDF(self, orYields, K_states, mode = 'PCA5'):
         
@@ -942,7 +956,104 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
     
     def getVarVecBeta(sigma2, N, Sigma):
         return sigma2 * np.kron(np.eye(N), np.linalg.inv(Sigma))
+    
+    def avaliaResiduos(self, smpl, columns = [12,24,36,60,84,120]):
+        
+        rerror = self.E_df.loc[smpl,columns]
+        perror = self.YieldPricingError.loc[smpl, columns]
 
+        metrics = pd.DataFrame()
+        for df, name in zip([perror, rerror],
+                            ['Panel A: Yield pricing errors', 'Panel B: Return pricing errors']):
+            
+            rho_df = pd.concat([df, df.shift(1), df.shift(6)], axis = 1)
+            
+            rho_df.columns = pd.MultiIndex.from_product([
+                ['t', 't-1', 't-6'], df.columns
+                ])
+            
+            cov = rho_df.cov()
+            
+            name_df = pd.DataFrame(columns = [name], index = df.columns)
+            metrics = pd.concat([
+                metrics,
+                name_df,
+                round(pd.concat([
+                    df.mean(axis = 0).to_frame('Mean'),
+                    df.std(axis = 0).to_frame('Std. Deviation'),
+                    df.skew(axis = 0).to_frame('Skewness'),
+                    df.kurtosis(axis = 0).to_frame('Kurtosis'),
+                    pd.DataFrame(
+                        np.diag(cov.loc['t','t-1']/cov.loc['t','t']).reshape(-1,1),
+                        columns = [r'$\rho(1)$'],
+                        index = df.columns
+                        ),
+                    pd.DataFrame(
+                        np.diag(cov.loc['t','t-6']/cov.loc['t','t']).reshape(-1,1),
+                        columns = [r'$\rho(6)$'],
+                        index = df.columns
+                        ),
+                    ], axis = 1),3),
+                ], axis = 1)
+
+        self.diagnosticsTable = metrics.T.replace(np.nan, '').to_markdown()
+
+    def plotDecomposicao(self, path):
+        
+        last_date = self.BRP.index[-1]
+    
+        last_curve = pd.concat([
+            self.YieldCurveObject.LogYields.loc[[last_date]],
+            self.FittedLogYields_RF.loc[[last_date]],
+            self.BRP.loc[[last_date]]
+            ], axis = 0).T
+        last_curve.columns = ['Última Curva', 'Expectativa Risco-Neutra', 'BRP']
+    
+        neg_brp = last_curve.loc[last_curve.BRP < 0]
+        pos_brp = last_curve.loc[last_curve.BRP >= 0]
+    
+        ax = last_curve.iloc[:,:-1].plot(
+            figsize = (14,7),
+            grid = True, lw = 4,
+            title = r'Decomposição da Última Curva'
+            )
+    
+        # quebra em segmentos para não haver conexão entre pontos estranhos
+        for df, alpha, label in zip(
+                [neg_brp, pos_brp],
+                [.15, .35],
+                ['Negative BRP', 'Positive BRP']
+                ):
+            seg_list = []
+            
+            for i, ind in enumerate(df.index):
+                if i == 0:
+                    start = ind
+                    last = start
+                elif i == df.shape[0]-1:
+                    seg_list.append((start,last))
+                else:
+                    if df.index[i] == last + 1:
+                        last = ind
+                    else:
+                        seg_list.append((start, last))
+                        start = ind
+                        last = start
+            
+            for l_ in seg_list:
+                temp = df.loc[(df.index >= l_[0]) & (df.index <= l_[1])]
+                ax.fill_between(
+                    temp.index,
+                    temp['Última Curva'],
+                    temp['Expectativa Risco-Neutra'],
+                    alpha = alpha,
+                    color = 'green', label = label
+                    )
+    
+        ax.get_figure().savefig(
+            path,
+            bbox_inches = 'tight'
+            )
 
 #%%  Modelo do ACM diário
 class ACMDaily(AffineYieldCurveModel):

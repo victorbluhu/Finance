@@ -372,16 +372,17 @@ class factorSet(returnSet):
     
 # %%
 
-portfolioSet1 = returnSet(returns.iloc[:135], riskFree.iloc[:135])
+portfolioSet1 = returnSet(returns, riskFree)
 
 if portfolioSet1.debugMode:
     precos = portfolioSet1.precos_dos_componentes
 
 ax = portfolioSet1.plotMeanVariance()
 
-factorSet1 = factorSet(factors.iloc[:135], riskFree.iloc[:135])
+factorSet1 = factorSet(factors, riskFree)
 ax = factorSet1.plotMeanVariance(ax)
-mp.show()
+
+ax = factorSet1.plotMeanVariance()
 
 # %%
 
@@ -393,7 +394,10 @@ if portfolioSet2.debugMode:
 ax2 = portfolioSet2.plotMeanVariance()
 
 factorSet2 = factorSet(factors.iloc[135:], riskFree.iloc[135:])
+
 factorSet2.plotMeanVariance(ax2)
+
+factorSet2.plotMeanVariance()
 
 # %%
 
