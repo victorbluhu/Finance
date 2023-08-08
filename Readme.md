@@ -3,6 +3,8 @@
 2. [Yield Curve](#yield-curve)
     1. [Nelson-Siegel-Svensson](#nelson-siegel-svensson)
     2. [Prêmio de Risco da Curva](#prêmio-de-risco-da-curva)
+        1. [Histórico de Prêmios de Risco](#histórico-de-prêmios-de-risco)
+        2. [Métricas de Replicação](#métricas-de-replicação)
 4. [Factor Analysis](#factor-analysis)
     1. [Choques de Política Monetária](#choques-de-política-monetária)
         1. [Estimação por OLS](#estimação-por-ols)
@@ -32,16 +34,50 @@ O workhorse básico para as manipulações de curvas de juros, além da classe _
 
 A implementação do Nelson-Siegel-Svensson está na classe _GSK\_Curve_, por conta de [Gürkaynak, Sack e Wright (2008)](#https://www.federalreserve.gov/pubs/feds/2008/200805/200805abs.html), que estimaram este modelo para US e começaram o projeto para disponibilização desses dados pelo Fed.
 
-INCLUIR UMA FIGURA DA CURVA MAIS ATUAL DISPONÍVEL PARA US UTILIZANDO A VISUALIZAÇÃO PADRÃO DA LIB.
+![Yields - US](Yield%20Curve/Figures/Yields.jpg)
+![FRAs de 1 ano - US](Yield%20Curve/Figures/FRAs.jpg)
 
 [^NSS]: Implementação baseada no [Working Paper do NBER ](#https://www.nber.org/papers/w4871), com versão publicada: "Estimating Forward Interest Rates with the Extended Nelson and Siegel Method," Sveriges Riksbank Quarterly Review 1995:3, pp 13-26.
 
 ## Prêmio de Risco da Curva
-[Adrian, Crump e Moench (2013)](#https://www.sciencedirect.com/science/article/abs/pii/S0304405X13001335) utilizam um modelo afim da estrutura termo da curva de juros e constróem uma série de argumentos para (1) utilizar os dados observados da curva de juros para caracterizar os estados relevantes para os retornos obtidos de títulos em cada vértice da curva, (2) para utilizar 3 regressões lineares para estimar os prêmios de risco ($\lambda_t = \lambda_0 + \lambda_1 X_t$) associado a cada estado e (3) construir testes de hipótese para entender quais estados são relevantes para prêmio de risco significante. Além disso, pela natureza do modelo deles, títulos em cada vértice têm log-preço (e portanto log-taxas) afins nos estados da economia $$\ln P_t(n) = A_t(n; \lambda_t) + B_t(n;\lambda_t) X_t, $$ então, impondo $\lambda_{1} = 0 \implies \lambda_t = \lambda_0$, é possível estimar os preços que refletem apenas a rolagem esperada da taxa de juros $$\ln P_t^{RF}(n) = A_t^{RF}(n; \lambda_0) + B_t^{RF}(n;\lambda_0) X_t .$$ A diferença entre as log-taxas associadas a esses preços ($y_t(n) = - 12/n * \ln P_t(n)$) caracteriza o Bond Risk Premium (BRP).
+[Adrian, Crump e Moench (2013)](#https://www.sciencedirect.com/science/article/abs/pii/S0304405X13001335) utilizam um modelo afim da estrutura termo da curva de juros e constróem uma série de argumentos para (1) utilizar os dados observados da curva de juros para caracterizar os estados relevantes para os retornos obtidos de títulos em cada vértice da curva, (2) para utilizar 3 regressões lineares para estimar os prêmios de risco ($\lambda_t = \lambda_0 + \lambda_1 X_t$) associado a cada estado e (3) construir testes de hipótese para entender quais estados são relevantes para prêmio de risco significante. Além disso, pela natureza do modelo deles, títulos em cada vértice têm log-preço (e portanto log-taxas) afins nos estados da economia $$\ln P_t(n) = A_t(n; \lambda_t) + B_t(n;\lambda_t) X_t, $$ então, impondo $\lambda_{1} = 0 \implies \lambda_t = \lambda_0$, é possível estimar os preços que refletem apenas a rolagem esperada da taxa de juros $$\ln P_t^{RF}(n) = A_t^{RF}(n; \lambda_0) + B_t^{RF}(n;\lambda_0) X_t .$$ Convertendo esses log-preços a log-taxas e calculando sua diferença, podemos calcular o Bond Risk Premium (BRP).
 
-DISCORRER SOBRE as métricas esperadas e atingidas para a replicação do modelo ACM(2013).
+![Decomposição da Curva](Yield%20Curve/Figures/Decomposicao%20da%20Curva.jpg)
 
-DISCORRER SOBRE (1) O DECLÍNIO DOS BRP ESTIMADOS, (2) SOBRE A RELAÇÃO ESPERADA E VERIFICADA DE RANKEAMENTO ENTRE ELES E SOBRE O AUMENTO RECENTE DOS BRPS PÓS-COVID.
+### Histórico de Prêmios de Risco
+Além de calcular a decomposição da última curva disponível, podemos avaliar o comportamento histórico dos prêmios de risco da curva.
+
+O primeiro e mais saliente feature é o quase perfeito rankeamento entre os prêmios de risco pela horizonte de maturidade do investimento. Isso é intuitivo: quanto maior o horizonte de investimento, menor é a convicção de que as taxas de juros seguirão o caminho esperado e provavelmente maiores são os prêmios cobrados para carregar esse risco. A ordem entre esses prêmios se altera em alguns momentos, mas o padrão predominante é o ordenamento.  
+
+Outro ponto interessante é a queda histórica dos BRPs estimados em todas as maturidades selecionadas, mesmo que não uniformemente no tempo. Parte dessa diminuição é mecanicamente explicada pela queda das taxas de juros e a expectativa de que as taxas de juros se manteriam baixas, no zero lower bound (ZLB), por muito tempo. Mais ainda, em alguns momentos mais conturbados como na crise da Covid-19, o prêmio de risco estimado é negativo, condizente com os agentes quererem pagar para tomar o risco de rolagem, mas eliminar o risco associado a eventos extremos. Aos poucos, parece que estamos voltando ao mundo de prêmios de risco positivos.
+![BRP - Anos Selecionados](Yield%20Curve/Figures/BRP%20-%20Anos%20Selecionados.jpg)
+
+### Métricas de Replicação
+A replicação do modelo se encaixa bastante bem no padrão obtido pelos autores originais. Aplicando o modelo aos dados de 1987 a 2011, obtemos o mesmo padrão que os autores obtiveram para os erros do modelo nas maturidades abaixo:
+1. Erros de precificação dos yields: erros pequenos, mas altamente correlacionados serialmente.
+2. Erros de precificação dos retornos: erros pequenos, com variados níveis de assimetria e curtose, mas principalmente não correlacionados serialmente.
+
+A interpretação aqui é a padrão de séries temporais: porque os resíduos das regressões dos retornos não são correlacionados serialmente, conseguimos capturar o que existe de previsibilidade neles. Caso mais variáveis sejam incluídas, podemos melhorar a projeção dos retornos futuros, por exemplo, incluindo features não lineares dos dados, mas o modelo é bem sucedido em capturar o prêmio de risco que o modelo parcimonioso se propõe a capturar.
+
+|                                | 12     | 24     | 36     | 60     | 84     | 120    |
+|:-------------------------------|:-------|:-------|:-------|:-------|:-------|:-------|
+| Panel A: Yield pricing errors  |        |        |        |        |        |        |
+| Mean                           | -0.0   | -0.001 | -0.001 | -0.002 | -0.003 | -0.004 |
+| Std. Deviation                 | 0.006  | 0.006  | 0.006  | 0.006  | 0.005  | 0.008  |
+| Skewness                       | -0.356 | 0.383  | 0.057  | -0.15  | 0.147  | -0.109 |
+| Kurtosis                       | 0.226  | 0.01   | -0.317 | -0.546 | -0.662 | -0.533 |
+| $\rho(1)$                      | 0.764  | 0.835  | 0.912  | 0.941  | 0.938  | 0.856  |
+| $\rho(6)$                      | 0.533  | 0.634  | 0.791  | 0.78   | 0.832  | 0.513  |
+| Panel B: Return pricing errors |        |        |        |        |        |        |
+| Mean                           | -0.0   | -0.0   | -0.0   | -0.0   | -0.0   | -0.0   |
+| Std. Deviation                 | 0.0    | 0.0    | 0.0    | 0.0    | 0.0    | 0.0    |
+| Skewness                       | 3.562  | 1.9    | 4.26   | 2.034  | 0.278  | 0.339  |
+| Kurtosis                       | 37.417 | 15.155 | 48.229 | 18.175 | 2.432  | 3.337  |
+| $\rho(1)$                      | 0.038  | 0.313  | 0.119  | -0.017 | -0.01  | -0.119 |
+| $\rho(6)$                      | 0.119  | 0.158  | 0.159  | 0.048  | 0.051  | 0.006  |
+
+![ACM (2013) - Table 2](Yield%20Curve/Figures/ACM_2013_Table_02.png)
+
 
 
 
@@ -52,7 +88,7 @@ Uma variável de extremo interesse é a sensibilidade dos ativos a mudanças nas
 
 Uma maneira de investigar essa questão é estimar modelos que tenham uma equação do tipo $$R_t^s = \beta^s \Delta i_t + ... + \eta_t^s.$$ O parâmetro de interesse aqui é o $\beta^s$, que para acada ativo $s$ pode ter sinal e magnitude particulares. Para avaliar essa questão, levantei dados diários desde 2003-06 para o IBOV, para o USDBRL e para os fatores de risco de equities disponibilizados pelo [Nefin](https://nefin.com.br/data/risk_factors.html), um centro de pesquisa em Finanças da FEA-USP. Os fatores de risco são excessos de retorno e os retornos diários do IBOV e do USDBRL são subtraídos do CDI do dia. Para as séries de juros, utilizei os 3 primeiros vencimentos de dados de futuros de taxa média de DI de 1 dia. Para calcular os resultados apresentados e discutidos abaixo, utilizei como medida da mudança de juros diária o primeiro componente principal das diferenças diárias das taxas de juros, exceto quando comentado em contrário.[^1]
 
-![Checar se pdf pode ser inserido como imagem. Se não puder, colocar jpeg.](Factor%20Analysis/Figures/ChoquesEstimadosMonePol.jpg)
+![Estimativas dos Choques Estimados](Factor%20Analysis/Figures/ChoquesEstimadosMonePol.jpg)
 |                    |   OLS |   EventStudy |   Surpresas |   Rigobon |   Média Surpresas e Rigobon |
 |:-------------------|------:|-------------:|------------:|----------:|----------------------------:|
 | IBOV menos CDI     | -3.91 |        -5.23 |       -6.13 |     -9.51 |                       -7.82 |
