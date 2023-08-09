@@ -12,7 +12,6 @@ import os
 ### importado como um script normal
 os.chdir(r'C:\Users\Victor\Dropbox\Python Scripts\Repositories\Finance\Yield Curve')
 
-import pandas as pd
 import datetime as dt
 import YieldCurveLib as yc
 import matplotlib.pyplot as mp

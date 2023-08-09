@@ -1019,9 +1019,10 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
             )
     
         # quebra em segmentos para não haver conexão entre pontos estranhos
-        for df, alpha, label in zip(
+        for df, alpha, color, label in zip(
                 [neg_brp, pos_brp],
-                [.15, .35],
+                [.2, .2],
+                ['Red', 'Green'],
                 ['Negative BRP', 'Positive BRP']
                 ):
             seg_list = []
@@ -1047,7 +1048,7 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
                     temp['Última Curva'],
                     temp['Expectativa Risco-Neutra'],
                     alpha = alpha,
-                    color = 'green', label = label
+                    color = color, label = label
                     )
     
         ax.get_figure().savefig(
