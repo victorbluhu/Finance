@@ -826,6 +826,20 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
             
         return state_matrix
     
+    def estimateNextExpectedReturn(self):
+        self.NextExpectedReturn = pd.DataFrame(
+            (np.hstack([
+                self.a,
+                self.beta.T
+                ]) @ np.vstack([
+                self.getAuxColOnes(1).T,
+                self.state_df.iloc[
+                    self.t:].T
+                ])).T,
+            columns = self.rx_data.columns,
+            index = self.YieldCurveObject.dates[-1:]
+            )
+    
     def estimateStep1(self, X_df):
         """Estima o VAR relacionado à transição dos estados.
         Para fazer isso, usamos o dataframe original dos dados.
