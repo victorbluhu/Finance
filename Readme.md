@@ -54,7 +54,7 @@ Outro ponto interessante é a queda histórica dos BRPs estimados em todas as ma
 ![BRP - Anos Selecionados](Yield%20Curve/Figures/BRP%20-%20Anos%20Selecionados.jpg)
 
 ### Métricas de Replicação
-A replicação do modelo se encaixa bastante bem no padrão obtido pelos autores originais. Aplicando o modelo aos dados de 1987 a 2011, percebemos na tabela abaixo o mesmo padrão que os autores destacaram na Tabela 2 de seu paper sobre os erros do modelo nas maturidades selecionadas:
+Infelizmente, os dados fornecidos pelo Fed para a curva de juros sofre revisões potenciais a cada divulgação, então, após 10 anos de novos dados e reestimações, os dados do recorte dos autores (1987M01 a 2011M12) não estão disponíveis livremente. A implementação do modelo realizada, entretanto, se encaixa bastante bem no padrão obtido pelos autores originais. Aplicando o modelo aos dados de 1987 a 2011, percebemos na tabela abaixo o mesmo padrão que os autores destacaram na Tabela 2 de seu paper sobre os erros do modelo nas maturidades selecionadas:
 1. Erros de precificação dos yields: erros pequenos, mas altamente correlacionados serialmente.
 2. Erros de precificação dos retornos: erros pequenos, com variados níveis de assimetria e curtose, mas principalmente não correlacionados serialmente.
 
