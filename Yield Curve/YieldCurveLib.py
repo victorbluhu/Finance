@@ -826,8 +826,9 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
             
         return state_matrix
     
-    def estimateNextExpectedReturn(self):
-        self.NextExpectedReturn = pd.DataFrame(
+    # Usa apenas a e beta pra calcular o retorno esperado do período seguinte
+    def projectNextExpectedReturn(self):
+        self.nextExpectedReturnProjection = pd.DataFrame(
             (np.hstack([
                 self.a,
                 self.beta.T
@@ -838,6 +839,101 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
                 ])).T,
             columns = self.rx_data.columns,
             index = self.YieldCurveObject.dates[-1:]
+            )
+    
+    # Estima novos a e beta pra calcular o retorno esperado do período seguinte
+    def forecastNextExpectedReturn(
+            self,
+            divisor_retornos_mensais_centesimais = True
+            ):
+        
+        selected_rx = self.rx_data.iloc[
+            :self.t
+            ].T.values / (12*100 if divisor_retornos_mensais_centesimais else 1)   # Exclui a última entrada, já que não conhecemos os excessos de retorno do último período
+        Z = np.vstack([
+            self.getAuxColOnes(self.t).T,
+            # np.ones((1, self.t)),
+            self.v[:,:self.t],
+            ])  #Innovations and lagged X
+        ab = selected_rx @ np.linalg.pinv(Z)
+        
+        self.nextExpectedReturnForecast = pd.DataFrame(
+            (ab @ np.vstack([
+                self.getAuxColOnes(1).T,
+                self.state_df.iloc[
+                    self.t:].T
+                ])).T,
+            columns = self.rx_data.columns,
+            index = self.YieldCurveObject.dates[-1:]
+            )
+    
+    def forecastNextExpectedReturn_RandomForest(
+            self,
+            divisor_retornos_mensais_centesimais = True,
+            train_percentage = 0.7, seed = 22111990,
+            max_depth = 10, n_estimators = 200
+            ):
+        
+        import numpy as np
+        import pandas as pd
+        from sklearn.ensemble import RandomForestRegressor
+        from sklearn.model_selection import LeaveOneOut
+        from sklearn.metrics import mean_squared_error
+        
+        response_data = self.rx_data.copy()
+        n_variables = response_data.shape[1]
+        covariate_data = self.state_matrix.copy()
+        
+        indx = response_data.index[:-1]
+        
+        # Split the data into training and validation sets
+        train_size = int(len(indx) * train_percentage)
+        # train_data = data.iloc[:train_size]
+        # val_data = data.iloc[train_size:]
+        
+        X_train = covariate_data.iloc[:train_size]
+        y_train = response_data.iloc[:train_size]
+        X_val = covariate_data.iloc[train_size:-1]
+        y_val = response_data.iloc[train_size:-1]
+        
+        best_model = None
+        best_rmse = float('inf')
+        
+        for L in range(2, max_depth):
+            
+            # Train a random forest model with bagging
+            model = RandomForestRegressor(
+                n_estimators=n_estimators,
+                random_state=22111990 if best_model is None else None,
+                max_depth=L)
+            
+            model.fit(X_train, y_train)
+            
+            # Perform leave-one-out validation on the last observation
+            loo = LeaveOneOut()
+            total_rmse = np.zeros(n_variables)
+            
+            for train_idx, val_idx in loo.split(X_val):
+                X_val_loo = X_val.iloc[val_idx]
+                y_val_loo = y_val.iloc[val_idx]
+            
+                y_pred_loo = model.predict(X_val_loo)
+                rmse = np.sqrt(mean_squared_error(y_val_loo, y_pred_loo, multioutput='raw_values'))
+                total_rmse += rmse
+            
+            average_rmse = total_rmse.sum() / n_variables
+            
+            
+            if average_rmse.sum() < best_rmse:
+                best_model, best_rmse = model, average_rmse
+            
+        frcst_date = response_data.index[-1]
+        frcst_returns = best_model.predict(covariate_data.loc[[frcst_date]])
+        # print(type(frcst_returns), frcst_returns)
+        self.nextExpectedReturnForecast_RandomForest = pd.DataFrame(
+            frcst_returns,
+            columns = response_data.columns,
+            index = [frcst_date]
             )
     
     def estimateStep1(self, X_df):

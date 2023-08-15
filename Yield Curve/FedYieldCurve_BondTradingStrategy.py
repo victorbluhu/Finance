@@ -39,6 +39,16 @@ retornos da curva, mas eles foram estimados utilizando a sample completa.
 Portanto, faremos estimativas mensais do modelo, calcularemos o retorno esperado
 para o mês seguinte nas maturidades selecionados e operaremos portfolios long-short
 pelo rankeamento de retornos esperados.
+
+Embutido no modelo, temos o forecast linear, que é uma porcaria para um mês de horizonte.
+Além disos, um random forest com baggin e janela expansiva permite aumentar a variância
+do retorno esperado, mas não ajuda.
+
+O próximo passo é configurar o modelo para estimar retornos esperados para horizontes maiores
+do que 1 mês (2, 3, 6 e 12 meses).
+A experiência em estimações anteriores (e a teoria) implicam maior estabilidade nos prêmios
+de risco estimados para horizontes mais longos. Além disso, com horizontes mais longos,
+é razoável esperar que a razão sinal-ruído seja mais favorável a forecasts.
 """
 
 min_estimation_length = 240
@@ -46,7 +56,9 @@ first_date = fullCurve.dates[min_estimation_length-1]
 
 last_date = fullCurve.dates[-1]
 
-expectedReturns = pd.DataFrame()
+expectedReturnsProjection = pd.DataFrame()
+expectedReturnsForecast = pd.DataFrame()
+expectedReturnsForecast_RandomForest = pd.DataFrame()
 
 for positionDate in fullCurve.dates[
         min_estimation_length-1:
@@ -60,24 +72,40 @@ for positionDate in fullCurve.dates[
             )
 
     positionModel = yc.ACMcomClasse(positionCurve)
-    positionModel.estimateNextExpectedReturn()
+    # positionModel.projectNextExpectedReturn()
+    # positionModel.forecastNextExpectedReturn()
+    positionModel.forecastNextExpectedReturn_RandomForest()
     
-    expectedReturns = pd.concat([
-        expectedReturns,
-        positionModel.NextExpectedReturn
+    # expectedReturnsProjection = pd.concat([
+    #     expectedReturnsProjection,
+    #     positionModel.nextExpectedReturnProjection
+    #     ])
+    # expectedReturnsForecast = pd.concat([
+    #     expectedReturnsForecast,
+    #     positionModel.nextExpectedReturnForecast
+    #     ])
+    expectedReturnsForecast_RandomForest = pd.concat([
+        expectedReturnsForecast_RandomForest,
+        positionModel.nextExpectedReturnForecast_RandomForest
         ])
-    
-expectedReturns / expectedReturns.columns * 12
 
-expectedReturns.max(axis = 0)
+# %% Métricas de Performance
 
-YieldCurveObject = yc.fetchCurvaGSKParametrizada(
-        tipo = 'nominal', max_maturity = 360,
-        mensal = True,
-        min_date = dt.datetime(1987,1,1),
-        # max_date = dt.datetime(2012,1,31)
-        )
+(
+ positionModel.rx_data - expectedReturnsForecast_RandomForest
+ )[[12,24,60,120]].dropna().plot(figsize = (14,7))
 
-full = yc.ACMcomClasse(YieldCurveObject)
+# expectedReturns / expectedReturns.columns * 12
 
-modeloACM.state_df
+# expectedReturns.max(axis = 0)
+
+# YieldCurveObject = yc.fetchCurvaGSKParametrizada(
+#         tipo = 'nominal', max_maturity = 360,
+#         mensal = True,
+#         min_date = dt.datetime(1987,1,1),
+#         # max_date = dt.datetime(2012,1,31)
+#         )
+
+# full = yc.ACMcomClasse(YieldCurveObject)
+
+# modeloACM.state_df
