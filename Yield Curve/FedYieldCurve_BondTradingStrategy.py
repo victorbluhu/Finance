@@ -56,9 +56,12 @@ first_date = fullCurve.dates[min_estimation_length-1]
 
 last_date = fullCurve.dates[-1]
 
-expectedReturnsProjection = pd.DataFrame()
-expectedReturnsForecast = pd.DataFrame()
-expectedReturnsForecast_RandomForest = pd.DataFrame()
+# expectedReturnsProjection = pd.DataFrame()
+# expectedReturnsForecast = pd.DataFrame()
+# expectedReturnsForecast_RandomForest = pd.DataFrame()
+
+expectedERPAnual_RandomForest = pd.DataFrame()
+expectedERPAnual_RandomForestIteration = pd.DataFrame()
 
 for positionDate in fullCurve.dates[
         min_estimation_length-1:
@@ -74,8 +77,19 @@ for positionDate in fullCurve.dates[
     positionModel = yc.ACMcomClasse(positionCurve)
     # positionModel.projectNextExpectedReturn()
     # positionModel.forecastNextExpectedReturn()
-    positionModel.forecastNextExpectedReturn_RandomForest()
+    positionModel.forecastNextExpectedReturn_RandomForest(anual = True)
+    expectedERPAnual_RandomForest = pd.concat([
+        expectedERPAnual_RandomForest,
+        positionModel.anual_nextExpectedReturnForecast_RandomForest.copy()
+        ])
     
+    positionModel.forecastNextExpectedReturn_RandomForest(
+        anual = True, iteratedCovariates=True
+        )
+    expectedERPAnual_RandomForestIteration = pd.concat([
+        expectedERPAnual_RandomForestIteration,
+        positionModel.anual_nextExpectedReturnForecast_RandomForest.copy()
+        ])
     # expectedReturnsProjection = pd.concat([
     #     expectedReturnsProjection,
     #     positionModel.nextExpectedReturnProjection
@@ -84,16 +98,35 @@ for positionDate in fullCurve.dates[
     #     expectedReturnsForecast,
     #     positionModel.nextExpectedReturnForecast
     #     ])
-    expectedReturnsForecast_RandomForest = pd.concat([
-        expectedReturnsForecast_RandomForest,
-        positionModel.nextExpectedReturnForecast_RandomForest
-        ])
+    # expectedReturnsForecast_RandomForest = pd.concat([
+    #     expectedReturnsForecast_RandomForest,
+    #     positionModel.nextExpectedReturnForecast_RandomForest
+    #     ])
+    
+    
 
 # %% Métricas de Performance
 
-(
- positionModel.rx_data - expectedReturnsForecast_RandomForest
- )[[12,24,60,120]].dropna().plot(figsize = (14,7))
+# expectedReturnsForecast_RandomForest[[12,24,60,120]].plot(figsize = (14,7))
+selected_maturity = 60
+plot = pd.concat([
+ fullCurve.LogRXsAnuais[[selected_maturity]],
+ expectedERPAnual_RandomForest[[selected_maturity]],
+ expectedERPAnual_RandomForestIteration[[selected_maturity]],
+ ], axis = 1)
+plot.columns = ['Realizado', 'Predito RF', 'Predito RF Iterado']
+ax = plot.loc[plot.index.year >= 2007].plot(
+    figsize = (14,7), grid = True, 
+    fontsize = 12, lw = 2
+    )
+
+ax.set_title(
+    f'Excesso de Retorno - Vértice de {selected_maturity} vs 12 meses',
+    fontsize = 14)
+
+mp.show()
+
+expectedERPAnual_RandomForestIteration[[24,36,60,120]].dropna().plot(figsize = (14,7))
 
 # expectedReturns / expectedReturns.columns * 12
 

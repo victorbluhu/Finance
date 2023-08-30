@@ -221,9 +221,11 @@ class YieldCurve:
         
         return LogHPRs - LogHPRs[[ref_month]].values
     
-    def getLogRXsAnuaisWithLogHPRsAnuaisAndLogHPRsMensaisParaReferenceMonth(self, LogHPRsAnuais, LogHPRsMensais, ref_month):
+    def getLogRXsAnuaisWithLogHPRsAnuaisAndLogHPRsMensaisParaReferenceMonth(
+            self, LogHPRsAnuais, LogHPRsMensais, ref_month):
         
-        return LogHPRsAnuais - LogHPRsMensais[[ref_month]].rolling(self.fixed_horizon_anual).mean().values
+        return LogHPRsAnuais - LogHPRsMensais[[ref_month]].rolling(
+            self.fixed_horizon_anual).mean().values
     
     #### Calcula inclinação de alguma das curvas
     def getInclinacaoWithDF(self, df_juros, v_curta, v_longa):
@@ -429,7 +431,10 @@ class YieldCurve:
         if not hasattr(self, 'LogHPRsAnuais'):
             print("Não tínhamos calculado os LogHPRsAnuais antes. Calcularemos agora.")
             self.createLogHPRsAnuais()
-        self.LogRXsAnuais = self.getLogRXsAnuaisWithLogHPRsAnuaisAndLogHPRsMensaisParaReferenceMonth(self.LogHPRsAnuais, self.LogHPRs, self.fixed_rate_horizon)
+        # self.LogRXsAnuais = self.getLogRXsAnuaisWithLogHPRsAnuaisAndLogHPRsMensaisParaReferenceMonth(
+        #     self.LogHPRsAnuais, self.LogHPRs, self.fixed_rate_horizon)
+        
+        self.LogRXsAnuais = self.getLogRXsWithLogHPRsAndReferenceMonth(self.LogHPRsAnuais, self.fixed_horizon_anual)
     
     def createRXsAnuais(self):
         if not hasattr(self, 'LogRXsAnuais'):
@@ -871,7 +876,8 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
             self,
             divisor_retornos_mensais_centesimais = True,
             train_percentage = 0.7, seed = 22111990,
-            max_depth = 10, n_estimators = 200
+            max_depth = 10, n_estimators = 200,
+            anual = False, iteratedCovariates = False
             ):
         
         import numpy as np
@@ -882,7 +888,22 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
         
         response_data = self.rx_data.copy()
         n_variables = response_data.shape[1]
+        
+        # Se queremos o premio anual, usamos LogRXsAnuais
+        if anual:
+            response_data = self.YieldCurveObject.LogRXsAnuais[
+                [x for x in self.rx_data.columns if x > 12]
+                ].copy()
+            n_variables = response_data.shape[1]
+        
         covariate_data = self.state_matrix.copy()
+        if iteratedCovariates:
+            import itertools
+            combinations = list(
+                itertools.combinations(covariate_data.columns, 2))
+            for comb in combinations:    
+                covariate_data[1000*comb[0] + comb[1]] =\
+                    covariate_data[comb[0]] * covariate_data[comb[1]]
         
         indx = response_data.index[:-1]
         
@@ -893,8 +914,13 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
         
         X_train = covariate_data.iloc[:train_size]
         y_train = response_data.iloc[:train_size]
+        
         X_val = covariate_data.iloc[train_size:-1]
         y_val = response_data.iloc[train_size:-1]
+        
+        if anual:
+            X_val = covariate_data.iloc[train_size:-12]
+            y_val = response_data.iloc[train_size:-12]
         
         best_model = None
         best_rmse = float('inf')
@@ -930,11 +956,22 @@ Minha intuição é que sim, mas ainda preciso pensar nisso.""")
         frcst_date = response_data.index[-1]
         frcst_returns = best_model.predict(covariate_data.loc[[frcst_date]])
         # print(type(frcst_returns), frcst_returns)
-        self.nextExpectedReturnForecast_RandomForest = pd.DataFrame(
-            frcst_returns,
-            columns = response_data.columns,
-            index = [frcst_date]
-            )
+        
+        if anual:
+            self.anual_best_model, self.anual_best_rmse = best_model, best_rmse
+            self.anual_nextExpectedReturnForecast_RandomForest = pd.DataFrame(
+                frcst_returns,
+                columns = response_data.columns,
+                index = [frcst_date]
+                )
+        else:
+            self.best_model, self.best_rmse = best_model, best_rmse
+        
+            self.nextExpectedReturnForecast_RandomForest = pd.DataFrame(
+                frcst_returns,
+                columns = response_data.columns,
+                index = [frcst_date]
+                )
     
     def estimateStep1(self, X_df):
         """Estima o VAR relacionado à transição dos estados.
