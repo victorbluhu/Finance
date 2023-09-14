@@ -101,7 +101,6 @@ def generateNodeNames(parentName = '1L', char_name = 'C2'):
     
     return parentName + char_number + 'L', parentName + char_number + 'H'
 
-
 # Given a characteristic series for a given date, separate portfolios in half
 def getHalfingWeights(
     char_series,
@@ -142,7 +141,7 @@ def getHalfingWeights(
     
     return l/l.sum(), h/h.sum()
 
-# given a sequence of splits and 
+# given a sequence of splits and characteristics, give node weights for a dtref
 def getTreeWeightsForDtref(
     characteristics, sequence = ('C1','C1','C2'),
     modeWeights = 'EW', dtref = 400
@@ -234,6 +233,80 @@ def getTreeReturns(
         
     return TreeReturns
 
+def getNodeDepth(nodeName):
+    if nodeName == 'Main':
+        return 0
+    else:
+        return len(nodeName)//2
+
+def getAdjustedTreeReturns(treeReturns):
+    
+    depth_list = [0,1,1,2,3]
+    depth_list = [getNodeDepth(x) for x in treeReturns]
+    adjustmentFactor = 2**(-np.array([depth_list], dtype=float))
+    
+    return treeReturns * adjustmentFactor
+
+# %% SDF Estimation Functions
+
+from scipy.linalg import eigh
+from numpy.linalg import svd
+
+
+# Given a tree of adjusted returns, a test sample and the elastic net parameters,
+# get the SRWeights
+
+# We follow the authors notation as close as possible
+def getLassoRegressors(
+        treeReturns, testSample, lambdaVec = np.array([1,1,1]),
+        minEigenValue = 1e-14
+        ):
+    
+    lambda0, lambda1, lambda2 = lambdaVec
+    
+    muHat = treeReturns.mean().values.reshape(-1,1)
+    muBar = muHat.mean()
+    
+    # Robust Estimators for Mean and Variance
+    # sorted eigenvalues (asc) and corresponding eigenvectors (in the columns)
+    s, rE = eigh(treeReturns.cov())
+    
+    eigenPositive = abs(s) > minEigenValue
+    # delta = sum(eigenPositive) # How many positive eigen
+    
+    # eigenPositive[:3] = False
+    VTilde = rE[:,eigenPositive]
+    DTilde = np.diag(s[eigenPositive])
+    
+    sigmaTilde = VTilde @ DTilde**(.5) @ VTilde.T
+    muTilde = VTilde @ DTilde**(-.5) @ VTilde.T @ (
+        muHat + lambda0 * muBar @ np.ones((VTilde.shape[0],1)) 
+        )
+    
+    y = np.hstack([muTilde, np.zeros((VTilde.shape[0],1)) ])
+    X = np.hstack([sigmaTilde, math.sqrt(lambda2) * np.eye(VTilde.shape[0]) ])
+    
+    return y, X
+
+
+# %% Define cortes válidos de uma AP-tree, caracterizada apenas pelos retornos
+### de seus portfolios
+
+def pruneTree(nodeToBeCut = '1L2H', nodesList = []):
+    
+    numLetters = len(nodeToBeCut)
+    return [x for x in nodesList if x[:numLetters] != nodeToBeCut]
+
+def getValidSubtreeSets(returnTree):
+    
+    max_depth = max([len(x)//2 for x in returnTree])
+    
+    
+
+
+# %% get
+
+
 # %% Generate Characteristics betas
 
 N = 800
@@ -258,14 +331,19 @@ factor, returns, betas = generateFactorReturnsAndBetas(
 
 # %% Define the tree portfolio function
 
+possibleTrees = getAllHalfingOrders(characteristics, depth = 3, dropSingle = True)
+
+baseSequence = possibleTrees
+
 treeReturns = getTreeReturns(
     characteristics, returns,
-    sequence = ('C1','C1','C2'), modeWeights = 'EW',
+    sequence = baseSequence, modeWeights = 'EW',
     rebalanceSkip = 1
         )
 
 treeReturns.mean() / treeReturns.std()
 
+adjustedTreeReturns = getAdjustedTreeReturns(treeReturns)
 
 # %%
 
