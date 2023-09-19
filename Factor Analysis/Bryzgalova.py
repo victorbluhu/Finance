@@ -10,6 +10,8 @@ from scipy.stats import norm
 import pandas as pd
 import math
 
+from sklearn.linear_model import LassoLars
+
 # %% Generate dataset
 
 # generate approximately correlated Uniform Variables
@@ -97,6 +99,9 @@ def getAllHalfingOrders(characteristics, depth = 3, dropSingle = True):
 # Given a parent node name and the char_series, create new names
 def generateNodeNames(parentName = '1L', char_name = 'C2'):
     
+    if parentName == 'Main':
+        parentName = ''
+    
     char_number = char_name[1:]
     
     return parentName + char_number + 'L', parentName + char_number + 'H'
@@ -167,14 +172,9 @@ def getTreeWeightsForDtref(
         newGen = []
         
         for series in oldGen:
-            
-            if d == 0:
-                parentName = ''
-            else:
-                parentName = series.name
                 
             l_name, h_name = generateNodeNames(
-                parentName=parentName,
+                parentName=series.name,
                 char_name=sequence[d]
                 )
             l_weights, h_weights = getHalfingWeights(
@@ -223,7 +223,7 @@ def getTreeReturns(
     TreeReturns = pd.DataFrame()
     for date in rebalanceDates:
         tempWeights = getTreeWeightsForDtref(
-           characteristics, sequence = ('C1','C1','C2'),
+           characteristics, sequence,
            modeWeights = 'EW', dtref = date
                )
         TreeReturns = pd.concat([
@@ -241,30 +241,56 @@ def getNodeDepth(nodeName):
 
 def getAdjustedTreeReturns(treeReturns):
     
-    depth_list = [0,1,1,2,3]
     depth_list = [getNodeDepth(x) for x in treeReturns]
-    adjustmentFactor = 2**(-np.array([depth_list], dtype=float))
+    adjustmentFactor = 2**(-.5*np.array([depth_list]))
     
     return treeReturns * adjustmentFactor
+
+def getTerminalLeaves(treeReturns, sequence = ('C1','C2','C2')):
+    
+    terminalLeaves = []
+    for x in treeReturns:
+        depth = getNodeDepth(x)
+        if depth == len(sequence):
+            terminalLeaves.append(x)
+        else:
+            l, r = generateNodeNames(x, sequence[depth])
+            if l not in treeReturns and r not in treeReturns:
+                terminalLeaves.append(x)
+        
+    return terminalLeaves
+
+def getSplitableNodes(tree, sequence = ('C1','C2','C2')):
+    
+    splitableNodes = []
+    for x in tree:
+        depth = getNodeDepth(x)
+        if depth < len(sequence):
+            l, r = generateNodeNames(x, sequence[depth])
+            if l in tree or r in tree:
+                continue
+            else:
+                splitableNodes.append(x)
+    
+    return splitableNodes
+
 
 # %% SDF Estimation Functions
 
 from scipy.linalg import eigh
-from numpy.linalg import svd
-
 
 # Given a tree of adjusted returns, a test sample and the elastic net parameters,
 # get the SRWeights
 
 # We follow the authors notation as close as possible
-def getLassoRegressors(
+def getSDFWeights(
         treeReturns, testSample, lambdaVec = np.array([1,1,1]),
         minEigenValue = 1e-14
         ):
     
     lambda0, lambda1, lambda2 = lambdaVec
     
-    muHat = treeReturns.mean().values.reshape(-1,1)
+    muHat = treeReturns.loc[testSample].mean().values.reshape(-1,1)
     muBar = muHat.mean()
     
     # Robust Estimators for Mean and Variance
@@ -276,19 +302,136 @@ def getLassoRegressors(
     
     # eigenPositive[:3] = False
     VTilde = rE[:,eigenPositive]
-    DTilde = np.diag(s[eigenPositive])
+    # DTilde = np.diag(s[eigenPositive])
     
-    sigmaTilde = VTilde @ DTilde**(.5) @ VTilde.T
-    muTilde = VTilde @ DTilde**(-.5) @ VTilde.T @ (
-        muHat + lambda0 * muBar @ np.ones((VTilde.shape[0],1)) 
+    # print(DTilde)
+    
+    # muHat + lambda0 * muBar @ np.ones((VTilde.shape[0],1))
+    # print(muHat.shape)
+    
+    sigmaTilde = VTilde @ np.diag(s[eigenPositive]**(.5)) @ VTilde.T
+    muTilde = VTilde @ np.diag(s[eigenPositive]**(-.5)) @ VTilde.T @ (
+        muHat + lambda0 * muBar * np.ones((VTilde.shape[0],1)) 
         )
     
-    y = np.hstack([muTilde, np.zeros((VTilde.shape[0],1)) ])
-    X = np.hstack([sigmaTilde, math.sqrt(lambda2) * np.eye(VTilde.shape[0]) ])
+    y = np.vstack([muTilde, np.zeros((VTilde.shape[0],1)) ])
+    X = np.vstack([sigmaTilde, math.sqrt(lambda2) * np.eye(VTilde.shape[0]) ])
     
-    return y, X
+    # Create an instance of the LassoLars model
+    lasso_lars = LassoLars(alpha=lambda1)
+    
+    # Fit the model to your data
+    lasso_lars.fit(X, y)
+    
+    # Get the coefficients
+    coefficients = lasso_lars.coef_
+    # selectedVariables = np.where(coefficients != 0)[0]
+    
+    return coefficients
 
+def getSDFReturns(
+        treeReturns, validationSample, coefficients, name = 'SDF'
+        ):
+    
+    return (
+        treeReturns.loc[validationSample] @ coefficients.reshape(-1,1)
+        ).rename({0:name}, axis = 1)
 
+def getSR(return_df):
+    
+    return sum(return_df.mean()/return_df.std())
+
+def getSDFfromTree(
+        adjustedTreeReturns, testSample,
+        treeReturns, validationSample,
+        lambdaVec = np.array([1,1,1]),
+        minEigenValue = 1e-14, name = 'SDF'):
+    
+    coeff = getSDFWeights(
+        adjustedTreeReturns, testSample, lambdaVec, minEigenValue)
+    selectedVariables = np.where(coeff != 0)[0]
+    
+    SDF = getSDFReturns(treeReturns, validationSample, coeff, name)
+    SR = getSR(SDF)
+    
+    return coeff, selectedVariables, SDF, SR
+
+def checkSucessfulSplit(oldTreeSR, newTreeSR):
+    
+    return newTreeSR > oldTreeSR
+
+def pruneIrrelevantChildNode(
+    attemptedTree, selectedVariables, l, r):
+    
+    selectedNodes = [attemptedTree[i] for i in selectedVariables]
+    
+    for node in [l,r]:
+        if node not in selectedNodes:
+            attemptedTree.remove(node)
+    
+    return attemptedTree
+
+# Solução não recursiva de estimação
+def splitUntilFindABetterTree(
+        oldTree, oldTreeSDFpack,
+        sequence,
+        completeReturns, adjustedCompleteReturns,
+        testSample, validationSample,
+        lambdaVec, minEigenValue
+        ):
+    
+    oldSR = oldTreeSDFpack[-1]
+    
+    splitableNodes = getSplitableNodes(oldTree, sequence)
+    
+    if splitableNodes == []:
+        return oldTree, oldTreeSDFpack
+    
+    else:
+        successfulSplit = False
+        
+        i = 0
+        while not successfulSplit and i != len(splitableNodes):
+            
+            # get child nodes names
+            parentNodeCandidate = splitableNodes[i]
+            depth = getNodeDepth(parentNodeCandidate)
+            l, r = generateNodeNames(parentNodeCandidate, sequence[depth])
+            
+            # build the new tree
+            attemptedTree = oldTree + [l,r]
+            # attemptedTreeReturns = completeReturns[attemptedTree]
+            
+            # estimate the newSDF
+            # Output: coefficients, selectedVariables, SDF in validation, SR
+            attemptedTreeSDFPack = getSDFfromTree(
+                adjustedCompleteReturns[attemptedTree], testSample,
+                completeReturns[attemptedTree], validationSample,
+                lambdaVec,
+                minEigenValue, name = 'SDF')
+            
+            successfulSplit = checkSucessfulSplit(
+                oldSR, attemptedTreeSDFPack[-1]
+                )
+            
+            if successfulSplit:
+                # print("Split!:", oldSR, attemptedTreeSDFPack[-1])
+                attemptedTreePrunedNodes = pruneIrrelevantChildNode(
+                    attemptedTree, attemptedTreeSDFPack[1], l, r)
+                attemptedTree = attemptedTreePrunedNodes
+                
+                # sanity check to avoid numerical errors
+                # if both new nodes were pruned, it was a non-succesful split
+                if len([x for x in attemptedTree if x not in oldTree]) == 0:
+                    # print("False Alarm")
+                    successfulSplit = False
+                else:
+                    return attemptedTree, attemptedTreeSDFPack
+            
+            i += 1
+        
+        return oldTree, oldTreeSDFpack
+    
 # %% Define cortes válidos de uma AP-tree, caracterizada apenas pelos retornos
 ### de seus portfolios
 
@@ -331,9 +474,10 @@ factor, returns, betas = generateFactorReturnsAndBetas(
 
 # %% Define the tree portfolio function
 
-possibleTrees = getAllHalfingOrders(characteristics, depth = 3, dropSingle = True)
+possibleTrees = getAllHalfingOrders(
+    characteristics, depth = 6, dropSingle = True)
 
-baseSequence = possibleTrees
+baseSequence = possibleTrees[0]
 
 treeReturns = getTreeReturns(
     characteristics, returns,
@@ -341,29 +485,104 @@ treeReturns = getTreeReturns(
     rebalanceSkip = 1
         )
 
-treeReturns.mean() / treeReturns.std()
-
 adjustedTreeReturns = getAdjustedTreeReturns(treeReturns)
+
+# %% Estimate the first tree
+
+
+# %% Parameters Space
+from itertools import product
+
+numSpaces = 20
+
+# Define N and N different lists
+lambda0space = np.hstack([0, np.logspace(-6,6,numSpaces)])
+lambda1space = np.hstack([0, np.logspace(-6,6,numSpaces)])
+lambda2space = np.hstack([0, np.logspace(-6,6,numSpaces)])
+
+# Create all possible combinations of the lists
+combinations = list(product(
+    lambda0space, lambda1space, lambda2space))
+
+# Create a DataFrame from the combinations
+parameterSpace = pd.DataFrame(
+    combinations,
+    columns=[f'Lambda_{i+1}' for i in range(3)])
+
+# Display the DataFrame
+parameterSpace
+
+# %% Optimize a tree
+
+attemptsParameter = pd.DataFrame(
+    columns = ['NumNodes','SR']
+    )
+
+trainSample = treeReturns.index[:240]
+validationSample = treeReturns.index[240:360]
+minEigenValue = 1e-14
+
+for i, vec in enumerate(parameterSpace.values):
+    
+    tree = ['Main']
+
+    adjustedReturns = adjustedTreeReturns[tree]
+    cReturns = treeReturns[tree]
+    
+    treePack = getSDFfromTree(
+            adjustedReturns, trainSample,
+            cReturns, validationSample,
+            vec,
+            minEigenValue)
+    
+    splittedTree = []
+    while len(splittedTree) != len(tree):
+        splittedTree, splittedTreePack = splitUntilFindABetterTree(
+                tree, treePack,
+                baseSequence,
+                treeReturns, adjustedTreeReturns,
+                trainSample, validationSample,
+                vec, minEigenValue
+                )
+        # if no new node was added, stop everything
+        if len([x for x in splittedTree if x not in tree]) == 0:
+            break
+        else:
+            tree, treePack = splittedTree, splittedTreePack
+    
+    attemptsParameter.loc[i,'NumNodes'] = len(tree)
+    attemptsParameter.loc[i,'SR'] = treePack[-1]
+    
+    
+# %%
+lambdaVec = np.array([.00001,.0001,.0001])
+
+
+
 
 # %%
 
-from statsmodels.datasets import grunfeld
-data = grunfeld.load_pandas().data
-data.year = data.year.astype(np.int64)
 
-# Establish unique IDs to conform with package
-N = len(np.unique(data.firm))
-ID = dict(zip(np.unique(data.firm).tolist(),np.arange(1,N+1)))
-data.firm = data.firm.apply(lambda x: ID[x])
 
-# use multi-index for panel groups
-data = data.set_index(['firm', 'year'])
-y = data['invest']
-X = data.drop('invest', axis=1)
+# # %%
 
-from ipca import InstrumentedPCA
-regr = InstrumentedPCA(n_factors=1, intercept=False)
-regr = regr.fit(X=X, y=y)
-Gamma, Factors = regr.get_factors(label_ind=True)
+# from statsmodels.datasets import grunfeld
+# data = grunfeld.load_pandas().data
+# data.year = data.year.astype(np.int64)
+
+# # Establish unique IDs to conform with package
+# N = len(np.unique(data.firm))
+# ID = dict(zip(np.unique(data.firm).tolist(),np.arange(1,N+1)))
+# data.firm = data.firm.apply(lambda x: ID[x])
+
+# # use multi-index for panel groups
+# data = data.set_index(['firm', 'year'])
+# y = data['invest']
+# X = data.drop('invest', axis=1)
+
+# from ipca import InstrumentedPCA
+# regr = InstrumentedPCA(n_factors=1, intercept=False)
+# regr = regr.fit(X=X, y=y)
+# Gamma, Factors = regr.get_factors(label_ind=True)
 
 
