@@ -433,23 +433,6 @@ def splitUntilFindABetterTree(
         return oldTree, oldTreeSDFpack
     
 # %% Define cortes válidos de uma AP-tree, caracterizada apenas pelos retornos
-### de seus portfolios
-
-def pruneTree(nodeToBeCut = '1L2H', nodesList = []):
-    
-    numLetters = len(nodeToBeCut)
-    return [x for x in nodesList if x[:numLetters] != nodeToBeCut]
-
-def getValidSubtreeSets(returnTree):
-    
-    max_depth = max([len(x)//2 for x in returnTree])
-    
-    
-
-
-# %% get
-
-
 # %% Generate Characteristics betas
 
 N = 800
@@ -496,8 +479,8 @@ from itertools import product
 numSpaces = 20
 
 # Define N and N different lists
-lambda0space = np.hstack([0, np.logspace(-6,6,numSpaces)])
-lambda1space = np.hstack([0, np.logspace(-6,6,numSpaces)])
+lambda0space = np.hstack([0, np.logspace(-6,0,numSpaces)])
+lambda1space = np.hstack([0, np.logspace(-6,0,numSpaces)])
 lambda2space = np.hstack([0, np.logspace(-6,6,numSpaces)])
 
 # Create all possible combinations of the lists
@@ -555,9 +538,7 @@ for i, vec in enumerate(parameterSpace.values):
     
     
 # %%
-lambdaVec = np.array([.00001,.0001,.0001])
-
-
+attemptsParameter[['SR']].max()
 
 
 # %%
