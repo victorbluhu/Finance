@@ -6,7 +6,7 @@
         1. [Histórico de Prêmios de Risco](#histórico-de-prêmios-de-risco)
         2. [Métricas de Replicação](#métricas-de-replicação)
 4. [Factor Analysis](#factor-analysis)
-    1. [Choques de Política Monetária](#choques-de-política-monetária)
+    1. [Efeitos de Política Monetária](#efeitos-de-política-monetária)
         1. [Estimação por OLS](#estimação-por-ols)
         2. [Identificação via Event-Study](#identificação-via-event-study)
         3. [Identificação por Surpresas de Juros](#identificação-por-surpresas-de-juros)
@@ -91,7 +91,7 @@ A interpretação aqui é a padrão de séries temporais: porque os resíduos da
 
 # Factor Analysis
 
-## Choques de Política Monetária
+## Efeitos de Política Monetária
 Uma variável de extremo interesse é a sensibilidade dos ativos a mudanças nas taxas de juros ou, mais especificamente, a mudanças na política monetária. Diversos são os canais pelos quais mudanças em taxas de juros são relevantes para os ativos. O canal mais imediato pelo qual aumentos de taxas de juros agem é aumentando o retorno exigido dos ativos, diminuindo o preço dos ativos e levando inicialmente a retornos negativos. Para equities, um canal negativo adicional esperado tipicamente é de queda nos earnings, porque juros maiores têm efeitos marginais negativos para atividade e para a lucratividade das empresas por conseguinte. Para a moeda local, entretanto, espera-se que haja uma apreciação vis-a-vis outras moedas (ou depreciação de outras moedas quando cotadas na moeda doméstica), levando a retornos positivos concomitantes aos aumentos de juros. Será que identificamos estes efeitos para a economia brasileira?
 
 Uma maneira de investigar essa questão é estimar modelos que tenham uma equação do tipo $$R_t^s = \beta^s \Delta i_t + ... + \eta_t^s.$$ O parâmetro de interesse aqui é o $\beta^s$, que para acada ativo $s$ pode ter sinal e magnitude particulares. Para avaliar essa questão, levantei dados diários desde 2003-06 para o IBOV, para o USDBRL e para os fatores de risco de equities disponibilizados pelo [Nefin](https://nefin.com.br/data/risk_factors.html), um centro de pesquisa em Finanças da FEA-USP. Os fatores de risco são excessos de retorno e os retornos diários do IBOV e do USDBRL são subtraídos do CDI do dia. Para as séries de juros, utilizei os 3 primeiros vencimentos de dados de futuros de taxa média de DI de 1 dia. Para calcular os resultados apresentados e discutidos abaixo, utilizei como medida da mudança de juros diária o primeiro componente principal das diferenças diárias das taxas de juros, exceto quando comentado em contrário.[^1]
