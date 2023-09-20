@@ -12,10 +12,14 @@
         3. [Identificação por Surpresas de Juros](#identificação-por-surpresas-de-juros)
         4. [Identificação por Heteroscedasticidade](#identificação-por-heteroscedasticidade)
         5. [Comentários sobre os Resultados](#comentários-sobre-os-resultados)
+   <!--
         6. [Próximos Passos](#próximos-passos)
-    2. [Fronteira Eficiente](#fronteira-eficiente)
-    3. [Atribuição de Performance](#atribuição-de-performance)
+   -->
+    2. [Asset Pricing Trees](#asset-pricing-trees)
 <!--
+    3. [Fronteira Eficiente](#fronteira-eficiente)
+    4. [Atribuição de Performance](#atribuição-de-performance)
+
 4. [Trading Strategy](#trading-strategy)
 -->
 # Introdução
@@ -25,12 +29,14 @@ A parte mais avançada hoje é a modelagem de curva de juros, [Yield Curve](#yie
 
 [^projAdicionalCurva]: Uma extensão que estou desenvolvendo à frente é a de decompor conjuntamente a curva de juros nominais e a curva de juros reais, permitindo criar também uma decomposição da inflação implícita (breakeven).
 
-Na seção seguinte, [Factor Analysis](#factor-analysis), há alguns projetos que utilizam fatores de risco do [Nefin](https://nefin.com.br/data/risk_factors.html) tanto para projetar os prêmios de risco embutidos em outros ativos, quanto como portifólios de equities nos quais buscamos identificar efeitos de política monetária.[^projAdicionalFatores]
+Na seção seguinte, [Factor Analysis](#factor-analysis), há alguns projetos que utilizam fatores de risco do [Nefin](https://nefin.com.br/data/risk_factors.html) tanto para estimar os prêmios de risco de outros ativos, quanto como portifólios de equities nos quais buscamos identificar efeitos de política monetária por diferentes métodos de identificação, que consigam separar os efeitos causais de mudanças nas taxas de juros nos retornos dos ativos.[^projAdicionalFatores]
 
 [^projAdicionalFatores]: Um projeto adicional a ser desenvolvido é o de [atribuição de performance a índices setoriais e fundos](#atribuição-de-performance) (cálculo de alphas e betas). Para este projeto, falta basicamente levantar um histórico de performance de fundos de investimento, mas ainda não fui atrás de uma fonte adequada para lidar com viés de sobrevivência. 
 
+O projeto ora em desenvolvimento é um subprojeto de Factor Analysis, que replica o método de [Bryzgalova, Pelger e Zhu (2023)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3493458) para estimar os portfolios teste ótimos para um modelo de fatores. Os autores argumentam que os portfolios assim obtidos são (1) estimados rapidamente (o que se constata na velocidade de estimação das árvores individuais) e (2) apresentam um barra mais alta para a validação de potenciais fatores, já que conseguiriam _span_ um espaço de retornos mais complexo do que portfolios de double- ou triple-sorting. A ideia é construir os portfolios-teste por um método data-drive, que escolhe escolhe os melhores portfolios long-only pela maximização do SR implícito com robustez dupla: com shrinkage da média de retornos dos portfolios-teste e da matriz de covariância entre eles. Para tanto, os portfolios são criados via árvore de decisões e splits por características dos ativos, generalizando os processos de sorting por características. Partindo do portfolio de mercado, dividem-se os ativos em dois portfolios separados pela mediana de uma característica e estima-se o SR ótimo. Se o split for bem-sucedido (aumentar o SR na amostra de validação), então se repete o processo, aumentando a árvore e o número de portfolios de teste até que não haja mais ramificações proveitosas adicionais.
+
 # Yield Curve
-## Nelson-Siegel-Svensson 
+## Nelson-Siegel-Svensson
 O workhorse básico para as manipulações de curvas de juros, além da classe _YieldCurve_, que guarda os métodos genéricos relativos a curvas de juros (visualização, conversões entre taxas, log-taxas, log-pu, holding period return, excess return, ...), é o modelo Nelson-Siegel-Svensson[^NSS]. Este é um modelo flexível que permite construir curvas de juros a partir de 4 a 6 parâmetros para qualquer vértice que se queira e a flexibilidade vem das duas "concavidades" que o modelo completo se permite ter: $$i_t(n) = \beta_{0t} + \beta_{1t} \frac{1 - exp(-n/\lambda_{1t})}{n/\lambda_{1t}} + \beta_{2t} \left(\frac{1 - exp(-n/\lambda_{1t})}{n/\lambda_{1t}} - exp(-n/\lambda_{1t}) \right) + \beta_{3t} \left(\frac{1 - exp(-n/\lambda_{2t})}{n/\lambda_{2t}} - exp(-n/\lambda_{2t}) \right).$$ Além disso, optou-se por usar esta implementação básica para construção de curvas de juros pela disponibilidade de curvas de juros utilizando este modelo. Além das curvas da Anbima utilizarem esse modelo, o Fed também disponibiliza versões da curva estimadas para a [curva de juros nominal](#https://www.federalreserve.gov/data/nominal-yield-curve.htm) e a [curva de juros reais](#https://www.federalreserve.gov/data/tips-yield-curve-and-inflation-compensation.htm) para US^[. Estes dados são utilizados para construir os exercícios de estimação do modelo de [Adrian, Crump e Moench (2013)](#https://www.sciencedirect.com/science/article/abs/pii/S0304405X13001335) para a estimação dos Bond-Risk Premium e Expectativa Risco-Neutra embutidos na curva de juros nominal US e também o modelo complementar a este, o [Abrahams, Adrian, Crump e Moench (2016)](#https://doi.org/10.1016/j.jmoneco.2016.10.006), que analisa conjuntamente a curva nominal e a curva real, com implicações de previsão para a breakeven.
 
 A implementação do Nelson-Siegel-Svensson está na classe _GSK\_Curve_, por conta de [Gürkaynak, Sack e Wright (2008)](#https://www.federalreserve.gov/pubs/feds/2008/200805/200805abs.html), que estimaram este modelo para US e começaram o projeto para disponibilização desses dados pelo Fed.
@@ -127,29 +133,32 @@ Na nossa especificação, utilizamos os 5 dias anteriores a cada comunicado do C
 Da mesma forma que na estratégia de identificação por surpresas de juros, obtemos apreciação do real como resultado de aumentos de juros, mesmo que com magnitude menor do que antes. Além disso, todos os efeitos estimados para equities aumentam de magnitude.
 
 ### Comentários sobre os Resultados
-SESSÃO PRELIMINAR.
-Os efeitos acima estimados estão bem alinhados com o esperado.
+Os efeitos acima estimados estão bem alinhados com o esperado quando nos atentamos aos problemas de identificação possíveis em um OLS simples.
 
-Primeiro sobre o câmbio. Pensando em termos da UIP, é razoável que um aumento de 1pp no diferencial de juros a favor do Brasil venha associado de apreciação do real em magnitude comparável.
+Primeiro sobre o câmbio. Pensando em termos da UIP, é razoável que um aumento de 1pp no diferencial de juros a favor do Brasil venha associado de apreciação do real em magnitude comparável. O fato de obtermos resultados contrários ao esperado quando não utilizamos boas técnicas de identificação dos efeitos causais são testemunhas claras da necessidade de buscar uma fonte de variação exógena para as estimações.
 
 Sobre o efeito em ações, esperamos efeitos fortes em ações para mudanças na curva de juros porque aqui agem dois canais: earnings e fator de desconto. Tanto descontamos os earnings da empresa a uma taxa maior, reduzindo seu valor presente, quanto esperamos redução na atividade, diminuindo os earnings esperados. Não é surpresa, portanto, encontrarmos 5-6% de efeito negativo para o IBOV ou o retorno de mercado em excesso ao CDI.
 
-Para os fatores de risco de equities, entretanto, estamos falando de excessos de retorno comparando equities com equities, então os canais do parágrafo anterior estão presentes nos dois retornos comparados, se anulando. Não é claro porque um rankeamento de size, value, momentum ou iliquidez deveria incorporar mais fortemente os canais de earnings ou fator de desconto no lado long ou no lado short de seus portfolios.
+Para os fatores de risco de equities, entretanto, estamos falando de excessos de retorno comparando equities com equities, então os canais do parágrafo anterior estão presentes nos dois retornos comparados, se anulando. Não é claro porque um rankeamento de size, momentum ou iliquidez deveria incorporar mais fortemente os canais de earnings ou fator de desconto no lado long ou no lado short de seus portfolios.
 
-Para o portfolio de Value existe maior discussão sobre sensibilidade a juros porque há "competição" entre os efeitos nas duas pontas do fator de Value(-Growth). Empresas de Value (alto Book/Mkt) seriam tipicamente empresas mais distressed, pras quais o canal de earnings causa mais prejuízo. Empresas de Growth (baixo Book/Mkt) seriam pensadas como mais sensíveis a juros, por terem earnings crescentes no tempo. Essas interpretações são disputáveis (e bastante disputadas).
+Para o portfolio de Value existe maior discussão sobre sensibilidade a juros porque há "competição" entre os efeitos nas duas pontas do fator de Value(-Growth). Empresas de Value (alto Book/Mkt) seriam tipicamente empresas mais distressed, pras quais o canal de earnings causa mais prejuízo. Empresas de Growth (baixo Book/Mkt) seriam pensadas como mais sensíveis a juros, por terem earnings crescentes no tempo. Importa salientar que essas interpretações são disputáveis (e bastante disputadas).
 
+<!--
 ### Próximos Passos
 Rodar com dados semanais em vez de diários
-<!--
+
 Teste para instrumentos fracos
  - LEWIS, D. Robust Inference in Models Identified via Heteroskedasticity
--->
+
 External/Internal Instruments / Local Projections para o VAR
  - Mais afeito a modelos low frequency. Semanal já soa overstretch. Cabível,
  é claro, mas overstretch
+-->
 
-## Fronteira Eficiente
-..
+## Asset Pricing Trees
+Aqui replicamos o método do working paper ["Forest Through the Trees: Building Cross-Sections of Stock Returns" de Bryzgalova, Pelger e Zhu](#https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3493458). Os autores têm uma crítica bastante pertinente à literatura de fatores em ações: a construção dos test-assets, com cujos retornos avaliamos os candidatos a fatores, é arbitrária. Por que construir portfolios por double- ou triple-sorting de características específicas seria a solução? Se os test-assets forem mal construídos, no sentido de não conseguirem projetar as dimensões relevantes do fator de desconto estocástico, então a barra para um candidato a fator conseguir explicar o SDF possível com os test assets é baixa. Minha intuição é que o SDF é um objeto complexo e que, para atingir o Sharpe-Ratio esperado máximo dado pelo SR esperado do SDF, é preciso buscar um conjunto de test assets que consiga capturar padrões eventualmente infrequentes/raros e que apenas um subconjunto de ativos específicos consegue capturar. A solução então é buscar um método data-driven que ao mesmo tempo generaliza a ideia de double- e triple-sorting, já que isso torna o conjunto de test assets mais interpretáveis, mas que seja orientado para efetivamente capturar a correta precificação de padrões complexos de retornos.
+
+O método e a contribuição dos autores se baseia em dois pilares: estimações robustas das covariâncias e retornos esperados por meio de shrinkages diversos e _pruning_ da árvore de decisão baseado no Sharpe-Ratio obtido pela árvore completa de portfolios, em oposição às técnicas habituais de estimação de árvores de decisão, que usariam critérios locais para split de portfolios. Partindo do conjunto de retornos dos ativos disponíveis e os market caps e características de cada ativo (como size, book-to-market, ...), os autores propõem criar portfolios value-weighted a partir de splits sequenciais, começando pelo portfolio de mercado, e sempre splittando os portfolio pela mediana de alguma das características disponíveis. Além dos parâmetros de shrinkage sobre os quais os autores otimizam, a ordem das características disponíveis é extremamente relevante e define a árvore ótima obtida. Por conta disso, os autores estimam as árvores ótimas para cada possível ordem de características (utilizando amostras de treino e validação), e então comparam as diferentes árvores de portfolios ótimas obtidas no processo pelas métricas na amostra de teste.
 
 <!--
 ## Atribuição de Performance
