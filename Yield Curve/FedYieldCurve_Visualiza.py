@@ -29,7 +29,7 @@ YieldCurveObject = yc.fetchCurvaGSKParametrizada(
         # max_date = dt.datetime(2012,1,31)
         )
 
-dates = [dt.datetime(2022,12,31), YieldCurveObject.dates[-2]]
+dates = [dt.datetime(2022,12,31), YieldCurveObject.dates[-1]]
 ax = YieldCurveObject.plotCurva('Yields', dates)
 # Optional parameters for ax
 ax.set_title('Estrutura a Termo de Yields', fontsize = 14)
